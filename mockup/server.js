@@ -8,6 +8,7 @@ import { injectPublicShareMetadata } from './src/share-preview.mjs';
 
 const publicFiles = new Map([
   ['/index.html', 'text/html; charset=utf-8'],
+  ['/vitrine.css', 'text/css; charset=utf-8'],
   ['/acesso-cliente.html', 'text/html; charset=utf-8'],
   ['/entrada.js', 'text/javascript; charset=utf-8'],
   ['/entrada.css', 'text/css; charset=utf-8'],
@@ -174,14 +175,14 @@ const server = createServer(async (req, res) => {
     let bytes = await readFile(new URL(`./dist${pathname}`, import.meta.url));
     if (sharePreview) bytes = Buffer.from(injectPublicShareMetadata(bytes.toString('utf8'), { ...sharePreview, origin: config.origin, area: publicShareRoute[1], slug: publicShareRoute[2] }));
     if (pathname === '/index.html' || accessMode) {
-      const data = await foundation.publicLanding(standaloneSlug);
-      const view = { slug: standaloneSlug, origin: config.origin, data, fallbackName: config.publicName };
+      const data = await foundation.publicLanding(standaloneSlug, { photos: !accessMode });
+      const view = { slug: standaloneSlug, origin: config.origin, data, fallbackName: config.publicName, sourceUrl: config.sourceUrl };
       bytes = Buffer.from(accessMode
         ? renderCustomerAccess(bytes.toString('utf8'), { ...view, mode: accessMode })
         : renderLanding(bytes.toString('utf8'), view));
       if (!accessMode && data && config.production) res.setHeader('X-Robots-Tag', 'index, follow');
     }
-    if (config.sourceUrl && contentType.startsWith('text/html')) {
+    if (config.sourceUrl && pathname !== '/index.html' && contentType.startsWith('text/html')) {
       bytes = Buffer.from(bytes.toString('utf8').replace('</body>', '<footer class="rael-legal-footer"><a href="/codigo-fonte">Código-fonte</a></footer></body>'));
     }
     res.writeHead(200, { 'Content-Type': contentType, 'Content-Length': bytes.length });

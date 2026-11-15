@@ -217,7 +217,16 @@ export async function createFoundation(config) {
   }
   return {
     async initializeStandalone(slug) { await ensure(slug); },
-    async publicLanding(slug) { return await publicShareSource(slug); },
+    async publicLanding(slug, { photos = false } = {}) {
+      const source = await publicShareSource(slug);
+      if (!photos || !source?.published?.professionals?.length) return source;
+      const activeIds = new Set(source.published.professionals.map(person => person.id));
+      const { db } = await ensure(slug);
+      const images = await db.query("SELECT image_key, version FROM business_images WHERE image_key <> 'logo'");
+      return { ...source, photoVersions: Object.fromEntries(images
+        .filter(image => activeIds.has(image.image_key))
+        .map(image => [image.image_key, image.version])) };
+    },
     async publicSharePreview(slug) { return (await publicShareSource(slug))?.identity ?? null; },
     publicShareImage,
     async handle(req, res, url) {
