@@ -112,4 +112,23 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   await json(api + 'customer/session', { cookie: register.cookie }, 200);
   await json(api + 'customer/login', { method: 'POST', data: consumer }, 200);
   assert.equal((await call(api + 'setup', { cookie: register.cookie })).status, 401);
+  const audience = { cookie: register.cookie, csrf: register.data.csrf };
+  const serviceId = draft.services[0].id;
+  const professionalId = draft.professionals[3].id;
+  const day = new Date(Date.now() + 3 * 86400000);
+  if (day.getUTCDay() === 0) day.setUTCDate(day.getUTCDate() + 1);
+  const date = day.toISOString().slice(0, 10);
+  const query = new URLSearchParams({ serviceId, professionalId, date });
+  const { data: availability } = await json(api + 'availability?' + query, audience, 200);
+  assert.ok(availability.slots.length);
+  const booking = { serviceId, professionalId, startAt: availability.slots[0].startAt,
+    quote: availability.quote.signature, idempotencyKey: randomUUID() };
+  const first = await json(api + 'customer/reserve', { ...audience, method: 'POST', data: booking }, 201);
+  const retry = await json(api + 'customer/reserve', { ...audience, method: 'POST', data: booking }, 200);
+  assert.equal(first.data.appointment.id, retry.data.appointment.id);
+  const { data: history } = await json(api + 'customer/appointments', audience, 200);
+  assert.equal(history.appointments.length, 1);
+  await json(api + 'customer/status', { ...audience, method: 'POST', data: {
+    appointmentId: first.data.appointment.id, revision: first.data.appointment.revision, status: 'cancelled'
+  } }, 200);
 });

@@ -41,3 +41,28 @@ jobs:
           APP_ORIGIN: https://agenda.example.com
           DB_PASSWORD: github-test-db
           DB_ROOT_PASSWORD: github-test-root
+      - name: Iniciar aplicação, MySQL e HTTPS pelo Compose
+        env:
+          APP_ORIGIN: https://localhost
+          DB_PASSWORD: github-test-db
+          DB_ROOT_PASSWORD: github-test-root
+        run: |
+          docker compose up -d
+          for attempt in $(seq 1 40); do
+            if docker compose exec -T proxy cat /data/caddy/pki/authorities/local/root.crt > "$RUNNER_TEMP/rael-ca.crt" 2>/dev/null \
+              && curl --max-time 4 --silent --show-error --fail --cacert "$RUNNER_TEMP/rael-ca.crt" https://localhost/ > "$RUNNER_TEMP/rael-root.html" \
+              && grep -q 'Criar conta' "$RUNNER_TEMP/rael-root.html"; then
+              exit 0
+            fi
+            sleep 3
+          done
+          docker compose ps
+          docker compose logs --tail 50
+          exit 1
+      - name: Limpar ambiente de teste
+        if: always()
+        env:
+          APP_ORIGIN: https://localhost
+          DB_PASSWORD: github-test-db
+          DB_ROOT_PASSWORD: github-test-root
+        run: docker compose down --volumes
