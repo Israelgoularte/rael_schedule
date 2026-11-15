@@ -1,3 +1,4 @@
+import { connectTraffic, renderTraffic, trafficQuery } from './traffic-view.js?v=310';
 import { parseClientsCsv, clientsCsv } from './gestao-csv.js?v=092';
 
 const root = document.querySelector('#management-root'), dialog = document.querySelector('#management-dialog');
@@ -14,8 +15,6 @@ const descriptions = { acessos: 'Veja de onde vieram os acessos à vitrine e as 
 let operationsAvailable = false;
 let user, csrf = '', setup, testMode = false, model, busy = false, error = '', q = '', offset = 0, appointmentOffset = 0, historyOffset = 0, detailCustomer = null, financeDetail = null, manualKey, manualStorageKey, importRows, importPreview, importKey, importRevision = 0;
 let filters = { from: '', to: '', professionalId: '' };
-const requestedTrafficDays = new URLSearchParams(location.search).get('days');
-const trafficDays = ['7', '30', '90'].includes(requestedTrafficDays) ? requestedTrafficDays : '30';
 const button = (label, action, extra = '', secondary = true) => `<button type="button" class="button ${secondary ? 'secondary' : ''}" data-manage="${action}" ${extra}>${label}</button>`;
 const field = (label, name, value = '', extra = '', type = 'text') => `<label class="field"><span>${esc(label)}</span><input name="${name}" type="${type}" value="${esc(value)}" ${extra}></label>`;
 const formatDate = at => new Intl.DateTimeFormat('pt-BR', { timeZone: model?.timeZone ?? setup?.draft?.business.timeZone ?? 'America/Sao_Paulo', dateStyle: 'short' }).format(at);
@@ -41,31 +40,14 @@ function dashboard() {
   const s = model.statuses, total = Object.values(s).reduce((a, b) => a + b, 0), max = Math.max(1, ...model.daily.map(d => Math.abs(d.netCents)));
   return `${periodForm()}${receiptCards()}<div class="management-kpis">${metric('Agendamentos no período', String(total), `${s.confirmed ?? 0} confirmados · ${s.in_progress ?? 0} em atendimento`)}${metric('Atendimentos concluídos', String(s.completed ?? 0), `${s.no_show ?? 0} falta(s) · ${s.cancelled ?? 0} cancelamento(s)`)}${metric('Novos clientes', String(model.newCustomers), 'Cadastros criados no período, respeitando seu acesso.')}${metric('Ocupação do expediente', model.occupancy.percent === null ? 'Sem expediente' : `${model.occupancy.percent.toLocaleString('pt-BR')}%`, `${model.occupancy.occupiedMinutes} min reservados / ${model.occupancy.availableMinutes} min disponíveis`)}</div><div class="note">A estimativa não confirma pagamento e diminui quando houver baixa manual. ${money(model.totals.completedEstimatedCents)} da estimativa são de atendimentos já concluídos. Assinaturas são contadas pelo recebimento da mensalidade, sem repetir receita em cada atendimento.</div><div class="management-grid"><section class="card"><h2>Movimento registrado por dia</h2><p class="small muted spaced">Recebimentos menos devoluções, antes de tarifas.</p><div class="trend-list">${model.daily.map(d => `<div class="trend-row ${d.netCents < 0 ? 'negative' : ''}"><span>${d.date.slice(8)}/${d.date.slice(5, 7)}</span><div class="trend-bar"><span style="--bar-width:${Math.max(1, Math.abs(d.netCents) / max * 100)}%"></span></div><strong>${money(d.netCents)}</strong></div>`).join('') || '<p class="muted small">Sem recebimentos registrados no período.</p>'}</div></section><section class="card"><h2>Atendimentos por profissional</h2><div class="management-list">${model.byProfessional.map(p => `<div><strong>${esc(p.name)}</strong><p class="small muted">${p.appointments} agendamento(s) · ${p.completed} concluído(s)<br>${money(p.estimatedCents)} estimados fora da plataforma</p></div>`).join('') || '<p class="small muted">Nenhum profissional cadastrado.</p>'}</div><p class="small muted">${esc(model.occupancy.basis)}</p></section></div>`;
 }
-function traffic() {
-  const fmt = value => Number(value).toLocaleString('pt-BR');
-  const columns = [['utm_source', 'Origem'], ['utm_medium', 'Meio'], ['utm_campaign', 'Campanha'], ['utm_content', 'Conteúdo'], ['utm_term', 'Termo']];
-  const rows = model.campaigns.map(({ utms, visits, bookings }) => `<tr>${columns.map(([key], index) => `<td>${esc(utms[key] ?? (index === 0 && !Object.keys(utms).length ? 'Sem UTM' : '—'))}</td>`).join('')}<td class="traffic-number">${fmt(visits)}</td><td class="traffic-number">${fmt(bookings)}</td></tr>`).join('');
-  return `<form method="get" class="management-filters card">
-      <label class="field"><span>Período</span><select name="days">${[7, 30, 90].map(days => `<option value="${days}" ${days === model.days ? 'selected' : ''}>Últimos ${days} dias</option>`).join('')}</select></label>
-      <button class="button" type="submit">Aplicar filtro</button>
-    </form>
-    <div class="management-kpis">
-      ${metric('Acessos à página inicial', fmt(model.totals.visits), 'Aberturas da página, incluindo visitas sem UTM.')}
-      ${metric('Agendamentos criados', fmt(model.totals.bookings), 'Reservas pela data em que foram feitas.')}
-    </div>
-    <section class="management-section">
-      <h2>Resultado por UTM</h2>
-      ${rows ? `<div class="traffic-table" tabindex="0" role="region" aria-label="Resultados por UTM"><table><thead><tr>${columns.map(([, label]) => `<th scope="col">${label}</th>`).join('')}<th scope="col">Acessos</th><th scope="col">Agendamentos</th></tr></thead><tbody>${rows}</tbody></table></div>` : empty('Nenhum acesso ou agendamento no período.')}
-      ${model.campaignCount > model.campaigns.length ? '<p class="small muted">A tabela mostra até 100 combinações. Os totais incluem todas elas.</p>' : ''}
-    </section>`;
-}
 function render() {
   document.title = `${titles[view]} · Rael Agendamentos`;
-  root.innerHTML = header() + `<main id="main" class="management-shell"><div class="management-heading"><div><div class="eyebrow">${user?.role === 'professional' ? 'Seu espaço individual' : 'Gestão do negócio'}</div><h1>${titles[view]}</h1><p>${descriptions[view]}</p></div>${view === 'clientes' && model?.canEdit ? `<div class="row">${button('Novo cliente', 'new-customer', '', false)}${model.canTransfer ? button('Importar CSV', 'import') + button('Exportar CSV', 'export') : ''}</div>` : ''}</div><div class="note error management-error" role="alert">${esc(error)}</div>${!model ? empty('Não foi possível carregar os registros. Atualize a página para tentar novamente.') : view === 'clientes' ? customerList() : view === 'financeiro' ? financeList() : view === 'acessos' ? traffic() : dashboard()}</main>`; window.RaelTheme?.sync(); window.RaelWorkspace.sync(); window.RaelLicenseNotice?.mount(slug, user?.role);
+  root.innerHTML = header() + `<main id="main" class="management-shell"><div class="management-heading"><div><div class="eyebrow">${user?.role === 'professional' ? 'Seu espaço individual' : 'Gestão do negócio'}</div><h1>${titles[view]}</h1><p>${descriptions[view]}</p></div>${view === 'clientes' && model?.canEdit ? `<div class="row">${button('Novo cliente', 'new-customer', '', false)}${model.canTransfer ? button('Importar CSV', 'import') + button('Exportar CSV', 'export') : ''}</div>` : ''}</div><div class="note error management-error" role="alert">${esc(error)}</div>${!model ? empty(view === 'acessos' ? '<a href="/sistema/' + encodeURIComponent(slug) + '/acessos">Reabrir Acessos sem filtros</a>' : 'Não foi possível carregar os registros. Atualize a página para tentar novamente.') : view === 'clientes' ? customerList() : view === 'financeiro' ? financeList() : view === 'acessos' ? renderTraffic(model, '/sistema/' + encodeURIComponent(slug) + '/acessos', metric) : dashboard()}</main>`; window.RaelTheme?.sync(); window.RaelWorkspace.sync(); window.RaelLicenseNotice?.mount(slug, user?.role);
+  if (view === 'acessos' && model) connectTraffic(root, model);
 }
 async function load() {
   if (view === 'acessos') {
-    model = await api('traffic?' + new URLSearchParams({ days: trafficDays }));
+    model = await api('traffic?' + trafficQuery(location.search));
     render();
     return;
   }

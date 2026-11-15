@@ -179,4 +179,15 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   });
   assert.ok(traffic.totals.visits >= 2);
   assert.equal(traffic.totals.bookings, 1);
+  assert.equal(traffic.daily.length, 7);
+  assert.equal(traffic.daily.reduce((sum, row) => sum + row.visits, 0), traffic.totals.visits);
+  const matchingVisits = await call('/?utm_source=social&utm_campaign=estreia');
+  assert.equal(matchingVisits.status, 200);
+  const { data: campaignSummary } = await json(api + 'traffic?days=7&campaign=utm%3Aestreia', identity, 200);
+  assert.deepEqual(campaignSummary.byCampaign, [{ name: 'estreia', visits: 3, bookings: 1, rate: 1 / 3 }]);
+  const custom = new URLSearchParams({ days: 'custom', from: traffic.today, to: traffic.today, source: 'utm:newsletter' });
+  const { data: filtered } = await json(api + 'traffic?' + custom, identity, 200);
+  assert.deepEqual(filtered.daily, [{ date: traffic.today, visits: 2, bookings: 1 }]);
+  assert.equal(filtered.totals.rate, .5);
+  await json(api + 'traffic?days=custom&from=2020-01-01&to=2021-01-01', identity, 422);
 });

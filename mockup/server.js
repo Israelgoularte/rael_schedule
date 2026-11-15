@@ -46,6 +46,7 @@ const publicFiles = new Map([
   ['/gestao.html', 'text/html; charset=utf-8'],
   ['/gestao.css', 'text/css; charset=utf-8'],
   ['/gestao.js', 'text/javascript; charset=utf-8'],
+  ['/traffic-view.js', 'text/javascript; charset=utf-8'],
   ['/gestao-csv.js', 'text/javascript; charset=utf-8'],
   ['/metadata.js', 'text/javascript; charset=utf-8'],
   ['/mp-config.html', 'text/html; charset=utf-8'],

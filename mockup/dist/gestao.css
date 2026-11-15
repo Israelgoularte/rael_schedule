@@ -205,3 +205,32 @@
  #registration-delete-form>.button{width:100%}
 }
 .traffic-table{overflow:auto;border:1px solid var(--line);border-radius:.75rem}.traffic-table table{width:100%;min-width:42rem;border-collapse:collapse;text-align:left;font-size:.92rem}.traffic-table th,.traffic-table td{padding:.75rem;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.traffic-table thead{background:var(--accent-soft)}.traffic-table tbody tr:last-child td{border-bottom:0}.traffic-number{text-align:right;font-variant-numeric:tabular-nums}
+.traffic-filters { display: grid; gap: .75rem; margin-bottom: 1rem; }
+.traffic-filter-grid, .traffic-dates { display: grid; gap: .75rem; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.traffic-filters .field { min-width: 0; margin: 0; }
+.traffic-filters select { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.traffic-dates { border: 0; padding: 0; margin: 0; grid-template-columns: repeat(2,minmax(0,12rem)); }
+.traffic-dates[hidden] { display: none; }
+.traffic-dates legend { padding: 0; margin-bottom: .45rem; font-size: .9rem; font-weight: 650; }
+.traffic-kpis { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.traffic-chart { --visits: var(--accent); --bookings: #347c8a; margin-block: 1.25rem; }
+.traffic-chart-heading { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:.5rem 1rem; }
+.traffic-legend { list-style:none; display:flex; flex-wrap:wrap; gap:.5rem 1rem; margin:0; padding:0; font-size:.82rem; }
+.traffic-legend li { display:flex; align-items:center; gap:.35rem; }
+.traffic-legend li::before { content:""; width:.65rem; height:.65rem; border-radius:.16rem; background:var(--visits); }
+.traffic-legend li:nth-child(2)::before { background:var(--bookings); }
+.traffic-chart-area { display:grid; grid-template-columns:minmax(2ch,max-content) minmax(0,1fr); gap:.5rem; margin-top:.9rem; }
+.traffic-scale { height:9rem; display:flex; flex-direction:column; justify-content:space-between; font-size:.75rem; color:var(--muted); text-align:right; }
+.traffic-scroll { overflow-x:auto; }
+.traffic-graph { display:grid; grid-template-columns:repeat(var(--points),minmax(0,1fr)); min-width:max(100%,calc(var(--points) * 1.45rem)); }
+.traffic-point { display:grid; grid-template-rows:9rem 1.6rem; min-width:0; padding:0; border:0; background:transparent; color:inherit; cursor:pointer; }
+.traffic-point:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+.traffic-point:hover,.traffic-point[aria-pressed="true"] { background:var(--accent-soft); }
+.traffic-bars { display:flex; justify-content:center; gap:2px; align-items:flex-end; border-bottom:1px solid var(--line); background:repeating-linear-gradient(to bottom,var(--line) 0 1px,transparent 1px 33.333%); }
+.traffic-bars i { display:block; width:min(.65rem,36%); height:var(--height); background:var(--visits); border-radius:.2rem .2rem 0 0; }
+.traffic-bars i:nth-child(2) { background:var(--bookings); }
+.traffic-tick { padding:.25rem 0; font-size:.68rem; white-space:nowrap; position:relative; z-index:1; }
+.traffic-detail summary { cursor:pointer; font-weight:680; margin-block:.7rem; }
+.traffic-table tbody th { font-weight:625; }
+@media(max-width:760px) { .traffic-filter-grid,.traffic-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:460px) { .traffic-kpis { grid-template-columns:minmax(0,1fr); } }

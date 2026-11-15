@@ -350,9 +350,10 @@ export function createService(db, slug, config, dummyHash) {
     return Buffer.from(row.image_base64, 'base64');
   }
   return { cookieName, session, login, activate, changePassword, recovery, operatorAccess, operatorRecovery, withCurrentSession, assertCurrentSession: async (tx, actor, settings) => currentSession(tx, actor, settings ?? await readSettings(tx, true)), snapshot, save, publish, invite, ownReceiving, ownHours, accessStatus, saveImage, image, booking, payments, subscriptions, customers, finance, license, notifications,
-    async traffic(user, days) {
+    async traffic(user, query) {
       if (user.role !== 'admin') throw failure(403, 'Somente o gestor pode consultar o relatório de acessos.');
-      return trafficReport(db, days, (config.now ?? Date.now)());
+      const settings = await readSettings(db);
+      return trafficReport(db, query, (config.now ?? Date.now)(), settings.published?.business.timeZone ?? settings.draft.business.timeZone);
     },
     async businessName() { return (await readSettings(db)).draft.business.name; },
     async logout(raw) { await db.query('DELETE FROM sessions WHERE token_hash = ?', [digest(raw ?? '')]); },

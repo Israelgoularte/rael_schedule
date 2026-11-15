@@ -1,13 +1,13 @@
 services:
   app:
     build:
-      context: https://github.com/Israelgoularte/rael_schedule.git#v1.1.1
+      context: https://github.com/Israelgoularte/rael_schedule.git#v1.2.0
     restart: unless-stopped
     environment:
       APP_ORIGIN: ${APP_ORIGIN:?Informe a URL HTTPS}
       APP_SLUG: ${APP_SLUG:-agenda}
       APP_PUBLIC_NAME: ${APP_PUBLIC_NAME:-}
-      APP_SOURCE_URL: https://github.com/Israelgoularte/rael_schedule/tree/v1.1.1
+      APP_SOURCE_URL: https://github.com/Israelgoularte/rael_schedule/tree/v1.2.0
       APP_BUSINESS_NAME: ${APP_BUSINESS_NAME:-}
       APP_OWNER_NAME: ${APP_OWNER_NAME:-}
       APP_OWNER_EMAIL: ${APP_OWNER_EMAIL:-}

@@ -474,7 +474,7 @@ export async function createFoundation(config) {
         if (path === 'finance/appointment' && req.method === 'GET') { json(res, 200, await service.finance.appointmentView(user, url.searchParams.get('id'))); return true; }
         if (path === 'finance/manual' && req.method === 'POST') { json(res, 200, await service.finance.manual(user, await body(req))); return true; }
         if (path === 'dashboard' && req.method === 'GET') { json(res, 200, await service.finance.dashboard(user, Object.fromEntries(url.searchParams))); return true; }
-        if (path === 'traffic' && req.method === 'GET') { json(res, 200, await service.traffic(user, Number(url.searchParams.get('days') ?? 30))); return true; }
+        if (path === 'traffic' && req.method === 'GET') { json(res, 200, await service.traffic(user, Object.fromEntries(url.searchParams))); return true; }
         if (path === 'subscriptions' && req.method === 'GET') { json(res, 200, { ...await service.subscriptions.plans(user), ...await service.subscriptions.list({ staff: user }) }); return true; }
         if (path === 'subscriptions/overview' && req.method === 'GET') { json(res, 200, await service.subscriptions.overview(user, Object.fromEntries(url.searchParams))); return true; }
         if (path === 'subscriptions/plan-members' && req.method === 'GET') { json(res, 200, await service.subscriptions.planMembers(user, Object.fromEntries(url.searchParams))); return true; }
