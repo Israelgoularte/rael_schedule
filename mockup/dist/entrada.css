@@ -23,13 +23,14 @@ h3 { margin-bottom: .75rem; }
 .team ul { display: flex; list-style: none; flex-wrap: wrap; padding: 0; gap: .6rem; }
 .team li { padding: .55rem .75rem; border-radius: .65rem; border: 1px solid #d7dfd9; background: #fff; }
 .access { width: min(100%, 29rem); margin-inline: auto; scroll-margin-top: 1rem; }
+.access h1 { font-size: clamp(1.55rem, 5vw, 2.35rem); letter-spacing: -.035em; }
 form { margin-top: 1.15rem; }
 fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 label { display: grid; gap: .35rem; margin: 0 0 .85rem; font-weight: 600; }
 input, button, .primary, .secondary { font: inherit; min-height: 2.75rem; border: 1px solid #a2afa5; border-radius: .65rem; }
 input { width: 100%; padding: .5rem .65rem; }
 button, .primary, .secondary { display: inline-flex; align-items: center; justify-content: center; padding: .55rem .9rem; background: #fff; color: inherit; cursor: pointer; text-decoration: none; }
-button[aria-pressed="true"], .primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.modes [aria-current="page"], .primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 button[type="submit"] { width: 100%; font-weight: 650; }
 button:disabled { opacity: .65; cursor: wait; }
 :focus-visible { outline: 3px solid #394840; outline-offset: 3px; }

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>__ACCESS_TITLE__ · __TITLE__</title>
+  <link rel="stylesheet" href="/entrada.css">
+  <script defer src="/entrada.js"></script>
+</head>
+<body data-business="__SLUG__" data-mode="__ACCESS_MODE__" style="__LANDING_STYLE__">
+  <header class="header">
+    __BRAND__
+    <a href="/">Voltar à página inicial</a>
+  </header>
+  <main>
+    <section class="access">
+      <h1>__ACCESS_TITLE__</h1>
+      <nav class="modes" aria-label="Acesso do cliente">
+        <a class="secondary" href="/sistema/__SLUG__?acesso=cliente" __LOGIN_CURRENT__>Entrar</a>
+        <a class="secondary" href="/sistema/__SLUG__?acesso=cadastro" __REGISTER_CURRENT__>Criar conta</a>
+      </nav>
+      <form method="post">
+        <fieldset __SIGNUP_STATE__>
+          <label>Nome <input name="name" autocomplete="name" maxlength="120" required></label>
+          <label>Celular com DDD <input name="phone" type="tel" autocomplete="tel" maxlength="24" required></label>
+        </fieldset>
+        <label>E-mail <input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+        <label>Senha <input name="password" type="password" autocomplete="__PASSWORD_AUTOCOMPLETE__" __PASSWORD_MINIMUM__ required></label>
+        <button class="primary" type="submit">__ACCESS_ACTION__</button>
+        <p role="status" aria-live="polite"></p>
+      </form>
+      __RECOVERY_LINK__
+    </section>
+  </main>
+  <footer class="site-footer">
+    <nav aria-label="Outros acessos">
+      <a href="/sistema/__SLUG__">Acesso da equipe</a>
+      <a href="/termos">Termos</a>
+      <a href="/privacidade">Privacidade</a>
+    </nav>
+  </footer>
+</body>
+</html>

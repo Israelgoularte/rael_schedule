@@ -5,7 +5,7 @@ const root = new URL('../', import.meta.url);
 for (const file of ['termos.html', 'privacidade.html', 'legal.css']) {
   await copyFile(new URL(`legal/${file}`, root), new URL(`dist/${file}`, root));
 }
-for (const file of ['dist/metadata.js', 'dist/legal-links.css', 'dist/index.html', 'dist/entrada.js', 'dist/entrada.css', 'dist/styles.css', 'dist/favicon.svg',
+for (const file of ['dist/metadata.js', 'dist/legal-links.css', 'dist/index.html', 'dist/acesso-cliente.html', 'dist/entrada.js', 'dist/entrada.css', 'dist/styles.css', 'dist/favicon.svg',
   'dist/robots.txt', 'dist/version.json', 'dist/theme.css', 'dist/theme.js', 'dist/workspace.js', 'dist/workspace.css', 'dist/notifications.js', 'dist/notifications.css', 'dist/notifications-sw.js', 'dist/notification-icon.png', 'dist/notification-badge.png', 'dist/app-logo-v4.png', 'dist/app-icon-v4-192.png', 'dist/app-icon-v4-512.png', 'dist/manifest.webmanifest', 'dist/sistema.html', 'dist/sistema.css', 'dist/sistema.js', 'dist/recovery.js', 'dist/recovery.css', 'dist/agendar.html', 'dist/agendar.css', 'dist/agendar.js', 'dist/agenda.js', 'dist/pagamento.js', 'dist/assinaturas.html', 'dist/assinaturas.css', 'dist/assinaturas.js', 'dist/gestao.html', 'dist/gestao.css', 'dist/gestao.js', 'dist/gestao-csv.js', 'dist/mp-config.html', 'dist/mp-config.css', 'dist/mp-config.js', 'server.js']) {
   await access(new URL(file, root));
 }

@@ -65,7 +65,21 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   }
   let response = await call('/');
   assert.equal(response.status, 200, logs);
-  assert.match(await response.text(), /Criar conta/);
+  const unpublished = await response.text();
+  assert.match(unpublished, /<h1>Empresa de teste<\/h1>/);
+  assert.match(unpublished, /href="\/negocio\/agenda">Agendar horário/);
+  assert.match(unpublished, /href="\/sistema\/agenda\?acesso=cliente">Entrar/);
+  assert.match(unpublished, /href="\/sistema\/agenda\?acesso=cadastro">Criar conta/);
+  assert.doesNotMatch(unpublished, /<form\b|<input\b/);
+  const login = await (await call('/sistema/agenda?acesso=cliente')).text();
+  assert.match(login, /data-mode="login"/);
+  assert.match(login, /<form method="post">/);
+  assert.match(login, /<fieldset hidden disabled>/);
+  const signup = await (await call('/sistema/agenda?acesso=cadastro')).text();
+  assert.match(signup, /data-mode="register"/);
+  assert.match(signup, /<fieldset\s*>/);
+  assert.match(signup, /autocomplete="new-password"/);
+  assert.doesNotMatch(await (await call('/sistema/agenda')).text(), /data-mode="(?:login|register)"/);
   for (const path of ['/precos', '/comecar', '/operacao', '/plataforma.html', '/internal/agenda/license', '/internal/agenda/account/closure']) {
     assert.equal((await call(path)).status, 404, path);
   }
@@ -102,6 +116,8 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   assert.match(landing, /--accent:#305097/);
   assert.match(landing, /Corte clássico/);
   assert.match(landing, /Pessoa 4/);
+  assert.match(landing, /href="\/negocio\/agenda">Agendar horário/);
+  assert.doesNotMatch(landing, /<form\b|<input\b/);
   assert.match(landing, /href="\/codigo-fonte"/);
   assert.doesNotMatch(landing, /Serviço interno|pessoa4@example.com/);
   assert.equal((await call('/negocio/agenda')).status, 200);

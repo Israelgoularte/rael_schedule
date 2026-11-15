@@ -50,5 +50,6 @@ export async function loadStandaloneConfiguration(env = process.env) {
     if (url.protocol !== 'https:' || url.username || url.password) throw new Error('APP_SOURCE_URL deve ser uma URL HTTPS.');
     sourceUrl = url.href;
   }
-  return { ...config, sourceUrl, standalone: true };
+  const publicName = (env.APP_PUBLIC_NAME || env.APP_BUSINESS_NAME || '').trim().slice(0, 120);
+  return { ...config, sourceUrl, publicName, standalone: true };
 }

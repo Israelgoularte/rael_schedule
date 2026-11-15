@@ -1,6 +1,6 @@
 # Rael Agendamentos
 
-Aplicação autohospedada para uma empresa por instalação. Inclui agenda pública, clientes, equipe, financeiro e planos de serviços. A página inicial combina a vitrine da empresa e o acesso de consumidores. O gestor configura o logo, título, cor, descrição e endereço em **Negócio**. A vitrine usa os serviços e os profissionais do catálogo publicado. Alterações no rascunho aparecem após republicar. Gestores, profissionais e recepção usam acessos individuais.
+Aplicação autohospedada para uma empresa por instalação. Inclui agenda pública, clientes, equipe, financeiro e planos de serviços. A página inicial exibe a vitrine da empresa e oferece acesso ao login, ao cadastro e à agenda pública. O gestor configura o logo, título, cor, descrição e endereço em **Negócio**. A vitrine usa os serviços e os profissionais do catálogo publicado. Alterações no rascunho aparecem após republicar. Gestores, profissionais e recepção usam acessos individuais.
 
 ## Antes de instalar
 

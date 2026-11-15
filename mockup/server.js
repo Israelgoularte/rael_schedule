@@ -3,11 +3,12 @@ import { readFile } from 'node:fs/promises';
 import { loadStandaloneConfiguration } from './src/standalone.mjs';
 import { createFoundation } from './src/foundation.mjs';
 import { createObservability } from './src/observability.mjs';
-import { renderLanding } from './src/landing.mjs';
+import { renderCustomerAccess, renderLanding } from './src/landing.mjs';
 import { injectPublicShareMetadata } from './src/share-preview.mjs';
 
 const publicFiles = new Map([
   ['/index.html', 'text/html; charset=utf-8'],
+  ['/acesso-cliente.html', 'text/html; charset=utf-8'],
   ['/entrada.js', 'text/javascript; charset=utf-8'],
   ['/entrada.css', 'text/css; charset=utf-8'],
   ['/styles.css', 'text/css; charset=utf-8'],
@@ -102,8 +103,9 @@ const server = createServer(async (req, res) => {
     res.writeHead(405, { Allow: 'GET, HEAD' }).end();
     return;
   }
-  if (pathname === '/index.html') {
-    res.writeHead(308, { Location: '/' }).end();
+  if (pathname === '/index.html' || pathname === '/acesso-cliente.html') {
+    const canonical = pathname === '/index.html' ? '/' : '/sistema/' + standaloneSlug + '?acesso=cliente';
+    res.writeHead(308, { Location: canonical }).end();
     return;
   }
   const publicShareRoute = /^\/(negocio|planos)\/([a-z0-9][a-z0-9-]{1,47})\/?$/.exec(pathname);
@@ -137,9 +139,16 @@ const server = createServer(async (req, res) => {
     return;
   }
   const systemPage = /^\/sistema\/([a-z0-9-]+)(?:\/(assinaturas|clientes|financeiro|painel|recebimentos))?\/?$/.exec(pathname);
+  let accessMode;
   if (systemPage?.[1] === standaloneSlug) {
     const area = systemPage[2];
-    pathname = area === 'recebimentos' ? '/mp-config.html' : area === 'assinaturas' ? '/assinaturas.html' : area ? '/gestao.html' : '/sistema.html';
+    const access = requestUrl.searchParams.get('acesso');
+    if (!area && ['cliente', 'cadastro'].includes(access)) {
+      accessMode = access === 'cadastro' ? 'register' : 'login';
+      pathname = '/acesso-cliente.html';
+    } else {
+      pathname = area === 'recebimentos' ? '/mp-config.html' : area === 'assinaturas' ? '/assinaturas.html' : area ? '/gestao.html' : '/sistema.html';
+    }
   } else if (publicShareRoute?.[2] === standaloneSlug) {
     pathname = publicShareRoute[1] === 'planos' ? '/assinaturas.html' : '/agendar.html';
   }
@@ -164,10 +173,13 @@ const server = createServer(async (req, res) => {
   try {
     let bytes = await readFile(new URL(`./dist${pathname}`, import.meta.url));
     if (sharePreview) bytes = Buffer.from(injectPublicShareMetadata(bytes.toString('utf8'), { ...sharePreview, origin: config.origin, area: publicShareRoute[1], slug: publicShareRoute[2] }));
-    if (pathname === '/index.html') {
+    if (pathname === '/index.html' || accessMode) {
       const data = await foundation.publicLanding(standaloneSlug);
-      bytes = Buffer.from(renderLanding(bytes.toString('utf8'), { slug: standaloneSlug, origin: config.origin, data }));
-      if (data && config.production) res.setHeader('X-Robots-Tag', 'index, follow');
+      const view = { slug: standaloneSlug, origin: config.origin, data, fallbackName: config.publicName };
+      bytes = Buffer.from(accessMode
+        ? renderCustomerAccess(bytes.toString('utf8'), { ...view, mode: accessMode })
+        : renderLanding(bytes.toString('utf8'), view));
+      if (!accessMode && data && config.production) res.setHeader('X-Robots-Tag', 'index, follow');
     }
     if (config.sourceUrl && contentType.startsWith('text/html')) {
       bytes = Buffer.from(bytes.toString('utf8').replace('</body>', '<footer class="rael-legal-footer"><a href="/codigo-fonte">Código-fonte</a></footer></body>'));
