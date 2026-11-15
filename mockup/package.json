@@ -1,0 +1,25 @@
+{
+  "name": "rael-agendamentos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Base e configuração guiada do Rael Agendamentos em Node.js",
+  "type": "module",
+  "engines": {
+    "node": ">=22 <25"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/standalone.test.mjs"
+  },
+  "dependencies": {
+    "@js-temporal/polyfill": "0.5.1",
+    "google-auth-library": "11.3.1",
+    "mysql2": "3.24.6",
+    "sharp": "0.35.5",
+    "web-push": "3.6.7",
+    "nodemailer": "10.3.1"
+  },
+  "license": "AGPL-3.0-only"
+}

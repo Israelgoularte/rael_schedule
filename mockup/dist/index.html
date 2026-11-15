@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>__TITLE__</title>
+  __METADATA__
+  <link rel="stylesheet" href="/entrada.css">
+  <script defer src="/entrada.js"></script>
+</head>
+<body data-business="__SLUG__" class="__LAYOUT__" style="__LANDING_STYLE__">
+  <header class="header">
+    __BRAND__
+    <nav aria-label="Acessos">
+      <a href="#acesso" data-open="login">Entrar</a>
+      <a href="#acesso" data-open="register">Criar conta</a>
+    </nav>
+  </header>
+  <main>
+    __HERO__
+    __CATALOG__
+    <section class="access" id="acesso">
+      <h2>Acesse seus agendamentos</h2>
+      <div class="modes" role="group" aria-label="Acesso do cliente">
+        <button type="button" data-mode="login" aria-pressed="true">Entrar</button>
+        <button type="button" data-mode="register" aria-pressed="false">Criar conta</button>
+      </div>
+      <form>
+        <fieldset hidden disabled>
+          <label>Nome <input name="name" autocomplete="name" maxlength="120" required></label>
+          <label>Celular com DDD <input name="phone" type="tel" autocomplete="tel" maxlength="24" required></label>
+        </fieldset>
+        <label>E-mail <input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+        <label>Senha <input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">Entrar</button>
+        <p role="status" aria-live="polite"></p>
+      </form>
+      <a id="recovery" href="/negocio/__SLUG__?visao=agendamentos">Esqueci a senha</a>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <nav aria-label="Outros acessos">
+      __PLAN_LINK__
+      <a href="/sistema/__SLUG__">Acesso da equipe</a>
+      <a href="/termos">Termos</a>
+      <a href="/privacidade">Privacidade</a>
+    </nav>
+  </footer>
+</body>
+</html>

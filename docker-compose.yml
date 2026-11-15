@@ -1,0 +1,63 @@
+services:
+  app:
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      APP_ORIGIN: ${APP_ORIGIN:?Informe a URL HTTPS}
+      APP_SLUG: ${APP_SLUG:-agenda}
+      APP_SOURCE_URL: ${APP_SOURCE_URL:-}
+      APP_BUSINESS_NAME: ${APP_BUSINESS_NAME:-}
+      APP_OWNER_NAME: ${APP_OWNER_NAME:-}
+      APP_OWNER_EMAIL: ${APP_OWNER_EMAIL:-}
+      APP_SETUP_TOKEN: ${APP_SETUP_TOKEN:-}
+      APP_SETUP_EXPIRES: ${APP_SETUP_EXPIRES:-}
+      DB_HOST: db
+      DB_NAME: agenda
+      DB_USER: agenda
+      DB_PASSWORD: ${DB_PASSWORD:?Informe uma senha para a aplicação}
+      RAEL_INTEGRATION_KEY: ${RAEL_INTEGRATION_KEY:-}
+      RAEL_MP_LIVE_APPROVED: ${RAEL_MP_LIVE_APPROVED:-0}
+      RAEL_RECOVERY_EMAIL_ENABLED: ${RAEL_RECOVERY_EMAIL_ENABLED:-0}
+      RAEL_SMTP_HOST: ${RAEL_SMTP_HOST:-}
+      RAEL_SMTP_PORT: ${RAEL_SMTP_PORT:-465}
+      RAEL_SMTP_USER: ${RAEL_SMTP_USER:-}
+      RAEL_SMTP_PASSWORD: ${RAEL_SMTP_PASSWORD:-}
+      RAEL_PUSH_SUBJECT: ${RAEL_PUSH_SUBJECT:-}
+      RAEL_PUSH_PUBLIC_KEY: ${RAEL_PUSH_PUBLIC_KEY:-}
+      RAEL_PUSH_PRIVATE_KEY: ${RAEL_PUSH_PRIVATE_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - backups:/backups
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Informe uma senha para o administrador MySQL}
+      MYSQL_DATABASE: agenda
+      MYSQL_USER: agenda
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Informe uma senha para a aplicação}
+    volumes:
+      - database:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysql --user=\"$$MYSQL_USER\" --password=\"$$MYSQL_PASSWORD\" --database=\"$$MYSQL_DATABASE\" --execute='SELECT 1' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    command: ["caddy", "reverse-proxy", "--from", "${APP_ORIGIN:?Informe a URL HTTPS}", "--to", "app:3000"]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - tls:/data
+    depends_on:
+      - app
+volumes:
+  database:
+  tls:
+  backups:

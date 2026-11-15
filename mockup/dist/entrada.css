@@ -1,0 +1,38 @@
+* { box-sizing: border-box; }
+:root { font-family: system-ui, sans-serif; color: #19231f; background: #f6f7f4; }
+body { --accent: #205340; --on-accent: #fff; margin: 0; }
+.header, main, .site-footer, body > .rael-legal-footer { max-width: 72rem; margin-inline: auto; padding-inline: clamp(1.1rem, 4vw, 2.5rem); }
+.header { min-height: 5rem; padding-block: .9rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.brand { display: flex; align-items: center; gap: .65rem; color: inherit; text-decoration: none; font-weight: 750; min-width: 0; overflow-wrap: anywhere; }
+.brand-logo { object-fit: contain; border-radius: .7rem; flex: none; background: #fff; }
+nav, .modes, .actions { display: flex; flex-wrap: wrap; gap: .65rem 1rem; align-items: center; }
+.hero { padding: clamp(2.25rem, 8vw, 6rem) clamp(1.25rem, 7vw, 5.25rem); background: #e8efe9; background: color-mix(in srgb, var(--accent) 12%, #f9faf7); border-radius: 1.5rem; }
+.hero > div { max-width: 48rem; }
+h1, h2, h3, p { margin-top: 0; overflow-wrap: anywhere; }
+h1 { font-size: clamp(2.25rem, 6vw, 4.5rem); line-height: 1.02; letter-spacing: -.055em; margin-bottom: 1rem; }
+h2 { font-size: clamp(1.35rem, 3vw, 2rem); letter-spacing: -.035em; }
+h3 { margin-bottom: .75rem; }
+.description, .location, .service p { line-height: 1.55; white-space: pre-line; color: #394840; }
+.description { font-size: clamp(1rem, 2vw, 1.15rem); max-width: 60ch; }
+.actions { margin-top: 1.5rem; }
+.catalog, .team, .access { margin-block: clamp(2.25rem, 6vw, 4.5rem); }
+.services-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: .95rem; }
+.service, .access { border: 1px solid #d7dfd9; border-radius: 1.15rem; background: #fff; padding: 1.35rem; }
+.service { display: flex; flex-direction: column; }
+.service-details { display: flex; justify-content: space-between; gap: .65rem; margin-top: auto; }
+.team ul { display: flex; list-style: none; flex-wrap: wrap; padding: 0; gap: .6rem; }
+.team li { padding: .55rem .75rem; border-radius: .65rem; border: 1px solid #d7dfd9; background: #fff; }
+.access { width: min(100%, 29rem); margin-inline: auto; scroll-margin-top: 1rem; }
+form { margin-top: 1.15rem; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+label { display: grid; gap: .35rem; margin: 0 0 .85rem; font-weight: 600; }
+input, button, .primary, .secondary { font: inherit; min-height: 2.75rem; border: 1px solid #a2afa5; border-radius: .65rem; }
+input { width: 100%; padding: .5rem .65rem; }
+button, .primary, .secondary { display: inline-flex; align-items: center; justify-content: center; padding: .55rem .9rem; background: #fff; color: inherit; cursor: pointer; text-decoration: none; }
+button[aria-pressed="true"], .primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+button[type="submit"] { width: 100%; font-weight: 650; }
+button:disabled { opacity: .65; cursor: wait; }
+:focus-visible { outline: 3px solid #394840; outline-offset: 3px; }
+a { color: #234939; }
+.site-footer, body > .rael-legal-footer { padding-block: 1.25rem; }
+@media (max-width: 36rem) { .header { align-items: flex-start; flex-wrap: wrap; } }

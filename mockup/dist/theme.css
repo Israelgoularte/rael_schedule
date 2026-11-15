@@ -1,0 +1,61 @@
+:root{
+  color-scheme:light;
+  --forest:#b78b36;--forest-dark:#24221d;--lime:#f1dfb5;--ink:#30291e;
+  --muted:#746b5b;--line:#e5ddce;--bg:#faf7f0;--white:#fffdf8;--orange:#c39038;
+  --surface:#fffdf8;--surface-alt:#f4eee2;--surface-raised:#fffefa;--primary-hover:#c89c46;
+  --on-primary:#241b09;--on-primary-muted:#38290f;--accent:#8a641f;--accent-soft:#f1e5c9;
+  --accent-line:#d4b677;--subtle:#857b68;--focus:#af8126;
+  --side-text:#d1c6ae;--side-muted:#b4a486;--side-surface:#463a24;--side-bright:#fff5dc;
+  --success-bg:#e8f0e3;--success-ink:#466735;--info-bg:#e9eef7;--info-ink:#4d648b;--info-line:#c8d5ea;
+  --warning-bg:#faf0df;--warning-ink:#8a5d1a;--warning-line:#e7cfaa;
+  --danger-bg:#fae9e4;--danger-ink:#a24736;--danger-line:#e9c9c0;
+  --notice-bg:#f3ebd7;--notice-ink:#74551c;--knob:#fffdf7;--overlay:#21190c80;
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --forest:#d3ac60;--forest-dark:#1d1c18;--lime:#edd19a;--ink:#f3ecdd;
+  --muted:#b9b09e;--line:#443d30;--bg:#171715;--white:#23221e;--orange:#ddb363;
+  --surface:#23221e;--surface-alt:#2c2a24;--surface-raised:#302c24;--primary-hover:#e3c17e;
+  --on-primary:#241c0e;--on-primary-muted:#463618;--accent:#dfbd79;--accent-soft:#3b301c;
+  --accent-line:#766039;--subtle:#a79c87;--focus:#e9c780;
+  --side-text:#d8cbb0;--side-muted:#b9a987;--side-surface:#46381e;--side-bright:#fff1d2;
+  --success-bg:#283720;--success-ink:#bfd3a7;--info-bg:#252e40;--info-ink:#bdccee;--info-line:#4b5a75;
+  --warning-bg:#3f301b;--warning-ink:#e7c07d;--warning-line:#73572d;
+  --danger-bg:#41271f;--danger-ink:#f0b5a5;--danger-line:#785041;
+  --notice-bg:#352c1c;--notice-ink:#e4c98f;--knob:#fff4db;--overlay:#00000099;
+}
+.btn,.stat.featured,.pricing.highlight,.slot.selected,.day-chip.selected,.booking-progress .active b{color:var(--on-primary)}
+.stat.featured .label,.stat.featured .foot,.stat.featured .foot b,.stat.featured .stat-icon,
+.pricing.highlight .muted,.pricing.highlight .plan-price small,.pricing.highlight .eyebrow,.pricing.highlight .rule-list svg{color:var(--on-primary-muted)}
+.btn.light,.btn.ghost,.btn.danger{color:var(--ink)}.btn.danger{color:var(--danger-ink)}
+.btn.lime{color:var(--forest-dark)}.btn:hover{background:var(--primary-hover)}
+.btn.light:hover{background:var(--surface-alt)}.btn.ghost:hover{background:var(--surface-alt)}
+.btn.danger:hover{background:var(--danger-bg)}.btn.lime:hover{background:var(--lime)}
+.logo-symbol{color:var(--forest-dark)}.float-card .timeline-icon{color:var(--on-primary)}
+#toast{color:var(--side-bright)}
+.sidebar,.sidebar .logo,.sidebar .nav-item:hover,.portal-header{color:var(--side-bright)}
+.nav-item.active{color:var(--forest-dark)}.day-chip.selected b{color:var(--on-primary)}
+.nav-item.active .nav-tag{color:var(--forest-dark)}
+.segmented button.active,.settings-nav button.active,.booking-progress .active{color:var(--accent)}
+.marketing,.portal{background:var(--bg)}
+.toggle:before{background:var(--knob)}
+dialog{background:var(--surface)}
+.theme-toggle{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:9px;cursor:pointer;flex:none;color:var(--accent);background:var(--surface)}
+.theme-toggle .icon{width:19px;height:19px;stroke:currentColor;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.theme-toggle:hover{background:var(--accent-soft)}
+.theme-toggle:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.portal-actions{display:flex;align-items:center;gap:10px;flex:none}
+.portal-actions>a{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;min-width:44px}
+.portal-actions .theme-toggle{color:var(--side-bright);background:#ffffff0a;border-color:#ffffff26}
+.mobile-label{display:none}
+.document-actions{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:25px}
+.document-actions .back{margin:0}
+@media(max-width:650px){
+  .desktop-label{display:none}.mobile-label{display:inline}
+  .market-nav nav{gap:8px}.market-nav nav>.btn{padding-left:11px;padding-right:11px}
+  .topbar>.row>.icon-btn.theme-toggle{display:inline-flex}
+  .breadcrumb-context{display:none}.topbar>.row:first-child,.breadcrumb{min-width:0}.breadcrumb b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .topbar>.row:last-child{flex:none}
+  .portal-actions{gap:5px}.portal-actions>a{padding:0}
+}
+@media print{.theme-toggle{display:none}:root[data-theme="dark"]{--bg:#fff;--surface:#fff;--ink:#30291e;--muted:#746b5b;--line:#d5cebf}}
