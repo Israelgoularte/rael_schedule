@@ -231,7 +231,7 @@ export async function createFoundation(config) {
     },
     async recordLandingView(slug, utms) {
       const { db } = await ensure(slug);
-      await countLandingView(db, utms, (config.now ?? Date.now)());
+      return countLandingView(db, utms, (config.now ?? Date.now)());
     },
     async publicSharePreview(slug) { return (await publicShareSource(slug))?.identity ?? null; },
     publicShareImage,

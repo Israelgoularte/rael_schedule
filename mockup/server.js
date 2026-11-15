@@ -4,7 +4,7 @@ import { loadStandaloneConfiguration } from './src/standalone.mjs';
 import { createFoundation } from './src/foundation.mjs';
 import { createObservability } from './src/observability.mjs';
 import { renderCustomerAccess, renderLanding } from './src/landing.mjs';
-import { basicUtms } from './src/traffic.mjs';
+import { basicUtms, visitParam } from './src/traffic.mjs';
 import { injectPublicShareMetadata } from './src/share-preview.mjs';
 
 const publicFiles = new Map([
@@ -179,16 +179,17 @@ const server = createServer(async (req, res) => {
     if (pathname === '/index.html' || accessMode) {
       const data = await foundation.publicLanding(standaloneSlug, { photos: !accessMode });
       const view = { slug: standaloneSlug, origin: config.origin, data, fallbackName: config.publicName, sourceUrl: config.sourceUrl, utms: basicUtms(requestUrl.searchParams) };
+      const speculative = /prefetch|prerender/i.test(String(req.headers['sec-purpose'] ?? req.headers.purpose ?? ''));
+      const crawler = /bot\b|crawler|spider|facebookexternalhit|whatsapp|slackbot/i.test(String(req.headers['user-agent'] ?? ''));
+      if (accessMode) view.visitRef = requestUrl.searchParams.get(visitParam);
+      else if (req.method === 'GET' && !speculative && !crawler && [undefined, 'document'].includes(req.headers['sec-fetch-dest'])) {
+        view.visitRef = await foundation.recordLandingView(standaloneSlug, view.utms)
+          .catch(error => observability.failure('landing_traffic_failed', error));
+      }
       bytes = Buffer.from(accessMode
         ? renderCustomerAccess(bytes.toString('utf8'), { ...view, mode: accessMode })
         : renderLanding(bytes.toString('utf8'), view));
       if (!accessMode && data && config.production) res.setHeader('X-Robots-Tag', 'index, follow');
-      const speculative = /prefetch|prerender/i.test(String(req.headers['sec-purpose'] ?? req.headers.purpose ?? ''));
-      const crawler = /bot\b|crawler|spider|facebookexternalhit|whatsapp|slackbot/i.test(String(req.headers['user-agent'] ?? ''));
-      if (!accessMode && req.method === 'GET' && !speculative && !crawler && [undefined, 'document'].includes(req.headers['sec-fetch-dest'])) {
-        await foundation.recordLandingView(standaloneSlug, view.utms)
-          .catch(error => observability.failure('landing_traffic_failed', error));
-      }
     }
     if (config.sourceUrl && pathname !== '/index.html' && contentType.startsWith('text/html')) {
       bytes = Buffer.from(bytes.toString('utf8').replace('</body>', '<footer class="rael-legal-footer"><a href="/codigo-fonte">Código-fonte</a></footer></body>'));

@@ -68,9 +68,9 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   assert.equal(response.status, 200, logs);
   const unpublished = await response.text();
   assert.match(unpublished, /<h1>Empresa de teste<\/h1>/);
-  assert.match(unpublished, /href="\/negocio\/agenda">Agendar horário/);
-  assert.match(unpublished, /href="\/sistema\/agenda\?acesso=cliente">Entrar/);
-  assert.match(unpublished, /href="\/sistema\/agenda\?acesso=cadastro">Criar conta/);
+  assert.match(unpublished, /href="\/negocio\/agenda\?ref_acesso=[a-f0-9-]{36}">Agendar horário/);
+  assert.match(unpublished, /href="\/sistema\/agenda\?acesso=cliente&amp;ref_acesso=[a-f0-9-]{36}">Entrar/);
+  assert.match(unpublished, /href="\/sistema\/agenda\?acesso=cadastro&amp;ref_acesso=[a-f0-9-]{36}">Criar conta/);
   assert.doesNotMatch(unpublished, /<form\b|<input\b/);
   const login = await (await call('/sistema/agenda?acesso=cliente')).text();
   assert.match(login, /data-mode="login"/);
@@ -130,7 +130,7 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   const coverAsset = await call(beforePublish.images.cover);
   assert.equal(coverAsset.status, 200);
   assert.equal(coverAsset.headers.get('content-type'), 'image/webp');
-  assert.match(landing, /href="\/negocio\/agenda">Agendar horário/);
+  assert.match(landing, /href="\/negocio\/agenda\?ref_acesso=[a-f0-9-]{36}">Agendar horário/);
   assert.doesNotMatch(landing, /<form\b|<input\b/);
   assert.match(landing, /href="\/codigo-fonte"/);
   assert.doesNotMatch(landing, /Serviço interno|pessoa4@example.com/);
@@ -141,11 +141,17 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   const tracked = await (await call(trackedPath)).text();
   const entryLink = tracked.match(/href="([^"]+)">Agendar horário/)[1].replaceAll('&amp;', '&');
   const carried = new URL(origin + entryLink);
+  const visitRef = carried.searchParams.get('ref_acesso');
+  assert.match(visitRef, /^[a-f0-9-]{36}$/);
+  carried.searchParams.delete('ref_acesso');
   assert.deepEqual(Object.fromEntries(carried.searchParams), campaign);
-  const access = await (await call('/sistema/agenda?acesso=cadastro&' + new URLSearchParams(campaign))).text();
+  const access = await (await call('/sistema/agenda?acesso=cadastro&' + new URLSearchParams({ ...campaign, ref_acesso: visitRef }))).text();
   assert.match(access, /data-bookings="\/negocio\/agenda\?visao=agendamentos&amp;utm_source=newsletter/);
+  assert.match(access, new RegExp('ref_acesso=' + visitRef));
   assert.equal((await call(trackedPath, { method: 'HEAD' })).status, 200);
-  assert.equal((await call(trackedPath)).status, 200);
+  const otherVisit = await (await call(trackedPath)).text();
+  const otherRef = otherVisit.match(/ref_acesso=([a-f0-9-]{36})/)[1];
+  assert.notEqual(otherRef, visitRef);
 
   const consumer = { email: 'cliente@example.com', password };
   const register = await json(api + 'customer/register', { method: 'POST',
@@ -163,7 +169,7 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   const { data: availability } = await json(api + 'availability?' + query, audience, 200);
   assert.ok(availability.slots.length);
   const booking = { serviceId, professionalId, startAt: availability.slots[0].startAt,
-    quote: availability.quote.signature, idempotencyKey: randomUUID(), metadata: Object.fromEntries(carried.searchParams) };
+    quote: availability.quote.signature, idempotencyKey: randomUUID(), metadata: { ...campaign, ref_acesso: visitRef } };
   const first = await json(api + 'customer/reserve', { ...audience, method: 'POST', data: booking }, 201);
   const retry = await json(api + 'customer/reserve', { ...audience, method: 'POST', data: booking }, 200);
   assert.equal(first.data.appointment.id, retry.data.appointment.id);
@@ -172,22 +178,35 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   await json(api + 'customer/status', { ...audience, method: 'POST', data: {
     appointmentId: first.data.appointment.id, revision: first.data.appointment.revision, status: 'cancelled'
   } }, 200);
+  const thirtyMinutes = 30 * 60000;
+  const secondSlot = availability.slots.find(slot => slot.startAt >= booking.startAt + thirtyMinutes);
+  const directSlot = availability.slots.find(slot => slot.startAt >= secondSlot.startAt + thirtyMinutes);
+  assert.ok(secondSlot && directSlot);
+  await json(api + 'customer/reserve', { ...audience, method: 'POST', data: {
+    ...booking, idempotencyKey: randomUUID(), startAt: secondSlot.startAt,
+    metadata: { ...campaign, utm_campaign: 'alterada-no-link', ref_acesso: visitRef }
+  } }, 201);
+  await json(api + 'customer/reserve', { ...audience, method: 'POST', data: {
+    ...booking, idempotencyKey: randomUUID(), startAt: directSlot.startAt,
+    metadata: { ...campaign, ref_acesso: randomUUID() }
+  } }, 201);
   assert.equal((await call(api + 'traffic', audience)).status, 401);
   const { data: traffic } = await json(api + 'traffic?days=7', identity, 200);
   assert.deepEqual(traffic.campaigns.find(entry => entry.utms.utm_campaign === 'estreia'), {
-    utms: campaign, visits: 2, bookings: 1
+    utms: campaign, visits: 2, bookings: 3
   });
   assert.ok(traffic.totals.visits >= 2);
-  assert.equal(traffic.totals.bookings, 1);
+  assert.equal(traffic.totals.bookings, 3);
+  assert.equal(traffic.totals.convertedVisits, 1);
   assert.equal(traffic.daily.length, 7);
   assert.equal(traffic.daily.reduce((sum, row) => sum + row.visits, 0), traffic.totals.visits);
   const matchingVisits = await call('/?utm_source=social&utm_campaign=estreia');
   assert.equal(matchingVisits.status, 200);
   const { data: campaignSummary } = await json(api + 'traffic?days=7&campaign=utm%3Aestreia', identity, 200);
-  assert.deepEqual(campaignSummary.byCampaign, [{ name: 'estreia', visits: 3, bookings: 1, rate: 1 / 3 }]);
+  assert.deepEqual(campaignSummary.byCampaign, [{ name: 'estreia', visits: 3, bookings: 3, trackedVisits: 3, convertedVisits: 1, rate: 1 / 3 }]);
   const custom = new URLSearchParams({ days: 'custom', from: traffic.today, to: traffic.today, source: 'utm:newsletter' });
   const { data: filtered } = await json(api + 'traffic?' + custom, identity, 200);
-  assert.deepEqual(filtered.daily, [{ date: traffic.today, visits: 2, bookings: 1 }]);
+  assert.deepEqual(filtered.daily, [{ date: traffic.today, visits: 2, bookings: 3 }]);
   assert.equal(filtered.totals.rate, .5);
   await json(api + 'traffic?days=custom&from=2020-01-01&to=2021-01-01', identity, 422);
 });

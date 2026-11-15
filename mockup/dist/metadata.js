@@ -37,7 +37,7 @@
     return normalize(Object.fromEntries(entries));
   }
   function campaign(metadata) {
-    return Object.fromEntries(['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']
+    return Object.fromEntries(['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'ref_acesso']
       .filter(key => Object.hasOwn(metadata, key)).map(key => [key, metadata[key]]));
   }
   window.RaelMetadata = Object.freeze({ capture, normalize, campaign, errorMessage });

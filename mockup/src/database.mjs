@@ -13,6 +13,7 @@ const schema = [
   `CREATE TABLE IF NOT EXISTS receiving_preferences (professional_id VARCHAR(36) PRIMARY KEY, require_payment INTEGER NOT NULL, connection_status VARCHAR(24) NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS business_images (image_key VARCHAR(36) PRIMARY KEY, image_base64 LONGTEXT NOT NULL, version VARCHAR(36) NOT NULL, updated_at BIGINT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS landing_traffic (hour_at BIGINT NOT NULL, campaign_key VARCHAR(64) NOT NULL, utm_json VARCHAR(2048) NOT NULL, hits BIGINT NOT NULL, PRIMARY KEY (hour_at, campaign_key))`,
+  `CREATE TABLE IF NOT EXISTS landing_visits (visit_key VARCHAR(64) PRIMARY KEY, created_at BIGINT NOT NULL, utm_json VARCHAR(2048) NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS auth_attempts (attempt_key VARCHAR(64) PRIMARY KEY, hits INTEGER NOT NULL, window_start BIGINT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS password_recovery_jobs (id VARCHAR(36) PRIMARY KEY, recipient_type VARCHAR(16) NOT NULL, recipient_id VARCHAR(36) NULL, email_hash VARCHAR(64) NOT NULL, payload_cipher LONGTEXT NULL, token_hash VARCHAR(64) NULL, state VARCHAR(16) NOT NULL, attempts INTEGER NOT NULL, lease_until BIGINT NOT NULL, next_check_at BIGINT NOT NULL, expires_at BIGINT NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, last_error VARCHAR(40) NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS password_recovery_dispatch (slug VARCHAR(48) PRIMARY KEY, revision INTEGER NOT NULL, next_check_at BIGINT NOT NULL)`,
@@ -21,6 +22,7 @@ const schema = [
   `CREATE TABLE IF NOT EXISTS customer_sessions (token_hash VARCHAR(64) PRIMARY KEY, customer_id VARCHAR(36) NOT NULL, csrf VARCHAR(64) NOT NULL, expires_at BIGINT NOT NULL, FOREIGN KEY (customer_id) REFERENCES customers(id))`,
   `CREATE TABLE IF NOT EXISTS customer_tokens (token_hash VARCHAR(64) PRIMARY KEY, customer_id VARCHAR(36) NOT NULL, expires_at BIGINT NOT NULL, used_at BIGINT NULL, FOREIGN KEY (customer_id) REFERENCES customers(id))`,
   `CREATE TABLE IF NOT EXISTS appointments (id VARCHAR(36) PRIMARY KEY, customer_id VARCHAR(36) NOT NULL, professional_id VARCHAR(36) NOT NULL, service_id VARCHAR(36) NOT NULL, starts_at BIGINT NOT NULL, ends_at BIGINT NOT NULL, occupied_until BIGINT NOT NULL, status VARCHAR(24) NOT NULL, revision INTEGER NOT NULL, snapshot_json LONGTEXT NOT NULL, metadata_json TEXT NOT NULL DEFAULT ('{}'), created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, FOREIGN KEY (customer_id) REFERENCES customers(id))`,
+  `CREATE TABLE IF NOT EXISTS landing_visit_bookings (appointment_id VARCHAR(36) PRIMARY KEY, visit_key VARCHAR(64) NOT NULL, FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE, FOREIGN KEY (visit_key) REFERENCES landing_visits(visit_key))`,
   `CREATE TABLE IF NOT EXISTS booking_requests (request_key VARCHAR(64) PRIMARY KEY, customer_id VARCHAR(36) NOT NULL, signature VARCHAR(64) NOT NULL, kind VARCHAR(24) NOT NULL, appointment_id VARCHAR(36) NOT NULL, created_at BIGINT NOT NULL, FOREIGN KEY (appointment_id) REFERENCES appointments(id))`,
   `CREATE TABLE IF NOT EXISTS booking_events (id VARCHAR(36) PRIMARY KEY, appointment_id VARCHAR(36) NOT NULL, actor_type VARCHAR(20) NOT NULL, actor_id VARCHAR(36) NOT NULL, event_name VARCHAR(40) NOT NULL, detail_json LONGTEXT NOT NULL, created_at BIGINT NOT NULL, FOREIGN KEY (appointment_id) REFERENCES appointments(id))`,
   `CREATE TABLE IF NOT EXISTS calendar_blocks (id VARCHAR(36) PRIMARY KEY, professional_id VARCHAR(36) NOT NULL, starts_at BIGINT NOT NULL, ends_at BIGINT NOT NULL, reason VARCHAR(200) NOT NULL, active INTEGER NOT NULL, created_by VARCHAR(36) NOT NULL, created_at BIGINT NOT NULL)`,
@@ -234,6 +236,11 @@ export async function openDatabase(config) {
     try { await db.query(`CREATE INDEX ${db.driver === 'sqlite' ? 'IF NOT EXISTS ' : ''}appointments_created ON appointments(created_at)`); }
     catch (error) { if (error.code !== 'ER_DUP_KEYNAME') throw error; }
     await db.query(`${insert} INTO schema_migrations(version, applied_at) VALUES (?, ?)`, [24, Date.now()]);
+    for (const [name, target] of [['landing_visits_period', 'landing_visits(created_at)'], ['landing_bookings_visit', 'landing_visit_bookings(visit_key)']]) {
+      try { await db.query(`CREATE INDEX ${db.driver === 'sqlite' ? 'IF NOT EXISTS ' : ''}${name} ON ${target}`); }
+      catch (error) { if (error.code !== 'ER_DUP_KEYNAME') throw error; }
+    }
+    await db.query(`${insert} INTO schema_migrations(version, applied_at) VALUES (?, ?)`, [25, Date.now()]);
     return db;
   } catch (error) { await db.close(); throw error; }
 }

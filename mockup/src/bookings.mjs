@@ -3,6 +3,7 @@ import { Temporal } from '@js-temporal/polyfill';
 import { readSettings } from './database.mjs';
 import { failure, digest, token, equal, isEmail, normalizeEmail, passwordHash, checkPassword, passwordAttempt, rateLimit } from './security.mjs';
 import { normalizeMetadata, readMetadata } from './metadata.mjs';
+import { bookingMetadata, findLandingVisit, visitParam } from './traffic.mjs';
 import { notifyAppointment } from './notification-events.mjs';
 
 const minuteMs = 60000;
@@ -243,7 +244,12 @@ export function createBookings(db, slug, config, dummyHash, payments, subscripti
       let id = original?.id ?? randomUUID();
       const usage = await subscriptions.consume(tx, input.subscriptionId, id, customer.id, serviceId, input.professionalId, input.startAt, result.ctx.snapshot, original ? JSON.parse(original.snapshot_json) : null);
       if (original) await tx.query('UPDATE appointments SET professional_id = ?, starts_at = ?, ends_at = ?, occupied_until = ?, snapshot_json = ?, revision = revision + 1, updated_at = ? WHERE id = ?', [input.professionalId, input.startAt, end, until, JSON.stringify(result.ctx.snapshot), now(), id]);
-      else await tx.query('INSERT INTO appointments(id, customer_id, professional_id, service_id, starts_at, ends_at, occupied_until, status, revision, snapshot_json, metadata_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [id, customer.id, input.professionalId, serviceId, input.startAt, end, until, result.ctx.snapshot.requirePayment ? 'awaiting_payment' : 'confirmed', 0, JSON.stringify(result.ctx.snapshot), JSON.stringify(metadata), now(), now()]);
+      else {
+        const occurredAt = now();
+        const visit = actor.customer ? await findLandingVisit(tx, metadata[visitParam], occurredAt) : null;
+        await tx.query('INSERT INTO appointments(id, customer_id, professional_id, service_id, starts_at, ends_at, occupied_until, status, revision, snapshot_json, metadata_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [id, customer.id, input.professionalId, serviceId, input.startAt, end, until, result.ctx.snapshot.requirePayment ? 'awaiting_payment' : 'confirmed', 0, JSON.stringify(result.ctx.snapshot), JSON.stringify(bookingMetadata(metadata, visit)), occurredAt, occurredAt]);
+        if (visit) await tx.query('INSERT INTO landing_visit_bookings(appointment_id, visit_key) VALUES (?, ?)', [id, visit.visitKey]);
+      }
       await subscriptions.recordUsage(tx, id, usage);
       if (!original) await payments.hold(tx, id, result.ctx);
       await tx.query('INSERT INTO booking_requests(request_key, customer_id, signature, kind, appointment_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [requestKey, customer.id, signature, reschedule ? 'reschedule' : 'create', id, now()]);

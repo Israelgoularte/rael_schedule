@@ -72,19 +72,19 @@ function table(headers, rows, label) {
 }
 
 export function renderTraffic(model, resetUrl, metric) {
-  const summaryRows = model.byCampaign.map(({ name, visits, bookings, rate }) => `<tr><th scope="row">${escape(name ?? 'Sem campanha')}</th><td class="traffic-number">${n(visits)}</td><td class="traffic-number">${n(bookings)}</td><td class="traffic-number">${p(rate)}</td></tr>`).join('');
+  const summaryRows = model.byCampaign.map(({ name, visits, bookings, trackedVisits, convertedVisits, rate }) => `<tr><th scope="row">${escape(name ?? 'Sem campanha')}</th><td class="traffic-number">${n(visits)}</td><td class="traffic-number">${n(trackedVisits)}</td><td class="traffic-number">${n(convertedVisits)}</td><td class="traffic-number">${n(bookings)}</td><td class="traffic-number">${p(rate)}</td></tr>`).join('');
   const detailRows = model.campaigns.map(({ utms, visits, bookings }) => `<tr>${columns.map(([key], index) => `<td>${escape(utms[key] ?? (index === 0 && !Object.keys(utms).length ? 'Sem UTM' : '—'))}</td>`).join('')}<td class="traffic-number">${n(visits)}</td><td class="traffic-number">${n(bookings)}</td></tr>`).join('');
   return `${filters(model, resetUrl)}
     <div class="management-kpis traffic-kpis">
       ${metric('Acessos à página inicial', n(model.totals.visits), 'Aberturas no período, incluindo visitas sem UTM.')}
       ${metric('Agendamentos criados', n(model.totals.bookings), 'Reservas pela data em que foram feitas.')}
-      ${metric('Taxa de conversão', p(model.totals.rate), 'Agendamentos criados ÷ acessos no período.')}
+      ${metric('Taxa de conversão', p(model.totals.rate), `${n(model.totals.convertedVisits)} de ${n(model.totals.trackedVisits)} acessos rastreados geraram uma reserva.`)}
     </div>
     ${chart(model)}
     <section class="management-section">
       <h2>Conversão por campanha</h2>
-      <p class="small muted">A taxa compara os totais do mesmo período. Campanhas sem acessos exibem “—”. Reservas pela agenda direta ou de visitas de outros períodos podem elevar a taxa acima de 100%.</p>
-      ${table(['Campanha', 'Acessos', 'Agendamentos', 'Conversão'], summaryRows, 'Conversão por campanha')}
+      <p class="small muted">A taxa usa a data do acesso à vitrine. Cada acesso rastreado que gera pelo menos um agendamento em até 2 horas conta uma vez. Acessos antigos sem vínculo aparecem no total, e campanhas sem acessos rastreados exibem “—”.</p>
+      ${table(['Campanha', 'Acessos', 'Rastreados', 'Convertidos', 'Agendamentos', 'Conversão'], summaryRows, 'Conversão por campanha')}
       ${model.summaryCount > model.byCampaign.length ? '<p class="small muted">A tabela mostra as 100 campanhas com mais movimento.</p>' : ''}
     </section>
     ${detailRows ? `<details class="management-section traffic-detail"><summary>Detalhes por UTM</summary>

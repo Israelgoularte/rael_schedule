@@ -1,4 +1,4 @@
-import { connectTraffic, renderTraffic, trafficQuery } from './traffic-view.js?v=310';
+import { connectTraffic, renderTraffic, trafficQuery } from './traffic-view.js?v=321';
 import { parseClientsCsv, clientsCsv } from './gestao-csv.js?v=092';
 
 const root = document.querySelector('#management-root'), dialog = document.querySelector('#management-dialog');

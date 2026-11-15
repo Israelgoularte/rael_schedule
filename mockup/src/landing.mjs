@@ -38,18 +38,18 @@ function fillTemplate(template, fields) {
   return template.replace(/__[A-Z_]+__/g, key => Object.hasOwn(fields, key) ? fields[key] : key);
 }
 
-function accessLinks(slug, utms) {
+function accessLinks(slug, utms, visitRef) {
   return {
-    '__LOGIN_LINK__': escape(withUtms(`/sistema/${slug}?acesso=cliente`, utms)),
-    '__REGISTER_LINK__': escape(withUtms(`/sistema/${slug}?acesso=cadastro`, utms))
+    '__LOGIN_LINK__': escape(withUtms(`/sistema/${slug}?acesso=cliente`, utms, visitRef)),
+    '__REGISTER_LINK__': escape(withUtms(`/sistema/${slug}?acesso=cadastro`, utms, visitRef))
   };
 }
 
-export function renderLanding(template, { slug, origin, data, fallbackName, sourceUrl, utms }) {
+export function renderLanding(template, { slug, origin, data, fallbackName, sourceUrl, utms, visitRef }) {
   const business = data?.published?.business;
   const { title, brand, logoPath, style } = businessIdentity(slug, data, fallbackName);
-  const bookingPath = escape(withUtms('/negocio/' + slug, utms));
-  const plansPath = escape(withUtms('/planos/' + slug, utms));
+  const bookingPath = escape(withUtms('/negocio/' + slug, utms, visitRef));
+  const plansPath = escape(withUtms('/planos/' + slug, utms, visitRef));
   const description = business?.description || '';
   const headline = business?.landingHeadline || title;
   const services = (data?.published?.services ?? []).filter(service => service.online !== false && service.professionalIds?.length);
@@ -104,7 +104,7 @@ export function renderLanding(template, { slug, origin, data, fallbackName, sour
   const links = business ? '<a href="' + plansPath + '">Planos</a>' : '';
 
   return fillTemplate(template, {
-    ...accessLinks(slug, utms),
+    ...accessLinks(slug, utms, visitRef),
     '__LANDING_STYLE__': style,
     '__TITLE__': escape(title),
     '__METADATA__': metadata,
@@ -117,12 +117,12 @@ export function renderLanding(template, { slug, origin, data, fallbackName, sour
   });
 }
 
-export function renderCustomerAccess(template, { slug, mode, data, fallbackName, utms }) {
+export function renderCustomerAccess(template, { slug, mode, data, fallbackName, utms, visitRef }) {
   const { title, brand, style } = businessIdentity(slug, data, fallbackName);
   const registering = mode === 'register';
-  const bookings = escape(withUtms(`/negocio/${slug}?visao=agendamentos`, utms));
+  const bookings = escape(withUtms(`/negocio/${slug}?visao=agendamentos`, utms, visitRef));
   return fillTemplate(template, {
-    ...accessLinks(slug, utms),
+    ...accessLinks(slug, utms, visitRef),
     '__LANDING_STYLE__': style,
     '__TITLE__': escape(title),
     '__BRAND__': brand,
