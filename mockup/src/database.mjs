@@ -12,6 +12,7 @@ const schema = [
   `CREATE TABLE IF NOT EXISTS account_tokens (token_hash VARCHAR(64) PRIMARY KEY, user_id VARCHAR(36) NOT NULL, kind VARCHAR(20) NOT NULL, expires_at BIGINT NOT NULL, used_at BIGINT NULL, FOREIGN KEY (user_id) REFERENCES users(id))`,
   `CREATE TABLE IF NOT EXISTS receiving_preferences (professional_id VARCHAR(36) PRIMARY KEY, require_payment INTEGER NOT NULL, connection_status VARCHAR(24) NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS business_images (image_key VARCHAR(36) PRIMARY KEY, image_base64 LONGTEXT NOT NULL, version VARCHAR(36) NOT NULL, updated_at BIGINT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS landing_traffic (hour_at BIGINT NOT NULL, campaign_key VARCHAR(64) NOT NULL, utm_json VARCHAR(2048) NOT NULL, hits BIGINT NOT NULL, PRIMARY KEY (hour_at, campaign_key))`,
   `CREATE TABLE IF NOT EXISTS auth_attempts (attempt_key VARCHAR(64) PRIMARY KEY, hits INTEGER NOT NULL, window_start BIGINT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS password_recovery_jobs (id VARCHAR(36) PRIMARY KEY, recipient_type VARCHAR(16) NOT NULL, recipient_id VARCHAR(36) NULL, email_hash VARCHAR(64) NOT NULL, payload_cipher LONGTEXT NULL, token_hash VARCHAR(64) NULL, state VARCHAR(16) NOT NULL, attempts INTEGER NOT NULL, lease_until BIGINT NOT NULL, next_check_at BIGINT NOT NULL, expires_at BIGINT NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, last_error VARCHAR(40) NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS password_recovery_dispatch (slug VARCHAR(48) PRIMARY KEY, revision INTEGER NOT NULL, next_check_at BIGINT NOT NULL)`,
@@ -230,6 +231,9 @@ export async function openDatabase(config) {
     await db.query(`${insert} INTO schema_migrations(version, applied_at) VALUES (?, ?)`, [21, Date.now()]);
     await db.query(`${insert} INTO schema_migrations(version, applied_at) VALUES (?, ?)`, [22, Date.now()]);
     await db.query(`${insert} INTO schema_migrations(version, applied_at) VALUES (?, ?)`, [23, Date.now()]);
+    try { await db.query(`CREATE INDEX ${db.driver === 'sqlite' ? 'IF NOT EXISTS ' : ''}appointments_created ON appointments(created_at)`); }
+    catch (error) { if (error.code !== 'ER_DUP_KEYNAME') throw error; }
+    await db.query(`${insert} INTO schema_migrations(version, applied_at) VALUES (?, ?)`, [24, Date.now()]);
     return db;
   } catch (error) { await db.close(); throw error; }
 }

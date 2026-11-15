@@ -4,6 +4,7 @@ import { loadStandaloneConfiguration } from './src/standalone.mjs';
 import { createFoundation } from './src/foundation.mjs';
 import { createObservability } from './src/observability.mjs';
 import { renderCustomerAccess, renderLanding } from './src/landing.mjs';
+import { basicUtms } from './src/traffic.mjs';
 import { injectPublicShareMetadata } from './src/share-preview.mjs';
 
 const publicFiles = new Map([
@@ -139,7 +140,7 @@ const server = createServer(async (req, res) => {
     res.writeHead(302, { Location: config.sourceUrl, 'Cache-Control': 'no-store' }).end();
     return;
   }
-  const systemPage = /^\/sistema\/([a-z0-9-]+)(?:\/(assinaturas|clientes|financeiro|painel|recebimentos))?\/?$/.exec(pathname);
+  const systemPage = /^\/sistema\/([a-z0-9-]+)(?:\/(assinaturas|clientes|financeiro|painel|acessos|recebimentos))?\/?$/.exec(pathname);
   let accessMode;
   if (systemPage?.[1] === standaloneSlug) {
     const area = systemPage[2];
@@ -176,11 +177,17 @@ const server = createServer(async (req, res) => {
     if (sharePreview) bytes = Buffer.from(injectPublicShareMetadata(bytes.toString('utf8'), { ...sharePreview, origin: config.origin, area: publicShareRoute[1], slug: publicShareRoute[2] }));
     if (pathname === '/index.html' || accessMode) {
       const data = await foundation.publicLanding(standaloneSlug, { photos: !accessMode });
-      const view = { slug: standaloneSlug, origin: config.origin, data, fallbackName: config.publicName, sourceUrl: config.sourceUrl };
+      const view = { slug: standaloneSlug, origin: config.origin, data, fallbackName: config.publicName, sourceUrl: config.sourceUrl, utms: basicUtms(requestUrl.searchParams) };
       bytes = Buffer.from(accessMode
         ? renderCustomerAccess(bytes.toString('utf8'), { ...view, mode: accessMode })
         : renderLanding(bytes.toString('utf8'), view));
       if (!accessMode && data && config.production) res.setHeader('X-Robots-Tag', 'index, follow');
+      const speculative = /prefetch|prerender/i.test(String(req.headers['sec-purpose'] ?? req.headers.purpose ?? ''));
+      const crawler = /bot\b|crawler|spider|facebookexternalhit|whatsapp|slackbot/i.test(String(req.headers['user-agent'] ?? ''));
+      if (!accessMode && req.method === 'GET' && !speculative && !crawler && [undefined, 'document'].includes(req.headers['sec-fetch-dest'])) {
+        await foundation.recordLandingView(standaloneSlug, view.utms)
+          .catch(error => observability.failure('landing_traffic_failed', error));
+      }
     }
     if (config.sourceUrl && pathname !== '/index.html' && contentType.startsWith('text/html')) {
       bytes = Buffer.from(bytes.toString('utf8').replace('</body>', '<footer class="rael-legal-footer"><a href="/codigo-fonte">Código-fonte</a></footer></body>'));

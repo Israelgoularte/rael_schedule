@@ -204,3 +204,4 @@
  #platform-dialog:has(.registration-detail)>.row{padding:10px 16px}
  #registration-delete-form>.button{width:100%}
 }
+.traffic-table{overflow:auto;border:1px solid var(--line);border-radius:.75rem}.traffic-table table{width:100%;min-width:42rem;border-collapse:collapse;text-align:left;font-size:.92rem}.traffic-table th,.traffic-table td{padding:.75rem;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.traffic-table thead{background:var(--accent-soft)}.traffic-table tbody tr:last-child td{border-bottom:0}.traffic-number{text-align:right;font-variant-numeric:tabular-nums}

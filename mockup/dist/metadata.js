@@ -36,5 +36,9 @@
     }
     return normalize(Object.fromEntries(entries));
   }
-  window.RaelMetadata = Object.freeze({ capture, normalize, errorMessage });
+  function campaign(metadata) {
+    return Object.fromEntries(['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']
+      .filter(key => Object.hasOwn(metadata, key)).map(key => [key, metadata[key]]));
+  }
+  window.RaelMetadata = Object.freeze({ capture, normalize, campaign, errorMessage });
 })();

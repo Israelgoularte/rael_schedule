@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>__ACCESS_TITLE__ · __TITLE__</title>
   <link rel="stylesheet" href="/entrada.css">
-  <script defer src="/entrada.js"></script>
+  <script defer src="/entrada.js?v=303"></script>
 </head>
-<body data-business="__SLUG__" data-mode="__ACCESS_MODE__" style="__LANDING_STYLE__">
+<body data-business="__SLUG__" data-mode="__ACCESS_MODE__" data-bookings="__BOOKING_HISTORY__" style="__LANDING_STYLE__">
   <header class="header">
     __BRAND__
     <a href="/">Voltar à página inicial</a>
@@ -16,8 +16,8 @@
     <section class="access">
       <h1>__ACCESS_TITLE__</h1>
       <nav class="modes" aria-label="Acesso do cliente">
-        <a class="secondary" href="/sistema/__SLUG__?acesso=cliente" __LOGIN_CURRENT__>Entrar</a>
-        <a class="secondary" href="/sistema/__SLUG__?acesso=cadastro" __REGISTER_CURRENT__>Criar conta</a>
+        <a class="secondary" href="__LOGIN_LINK__" __LOGIN_CURRENT__>Entrar</a>
+        <a class="secondary" href="__REGISTER_LINK__" __REGISTER_CURRENT__>Criar conta</a>
       </nav>
       <form method="post">
         <fieldset __SIGNUP_STATE__>

@@ -1,3 +1,5 @@
+import { withUtms } from './traffic.mjs';
+
 const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const escape = value => String(value ?? '').replace(/[&<>"']/g, character => entities[character]);
 const price = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -36,11 +38,18 @@ function fillTemplate(template, fields) {
   return template.replace(/__[A-Z_]+__/g, key => Object.hasOwn(fields, key) ? fields[key] : key);
 }
 
-export function renderLanding(template, { slug, origin, data, fallbackName, sourceUrl }) {
+function accessLinks(slug, utms) {
+  return {
+    '__LOGIN_LINK__': escape(withUtms(`/sistema/${slug}?acesso=cliente`, utms)),
+    '__REGISTER_LINK__': escape(withUtms(`/sistema/${slug}?acesso=cadastro`, utms))
+  };
+}
+
+export function renderLanding(template, { slug, origin, data, fallbackName, sourceUrl, utms }) {
   const business = data?.published?.business;
   const { title, brand, logoPath, style } = businessIdentity(slug, data, fallbackName);
-  const bookingPath = '/negocio/' + slug;
-  const plansPath = '/planos/' + slug;
+  const bookingPath = escape(withUtms('/negocio/' + slug, utms));
+  const plansPath = escape(withUtms('/planos/' + slug, utms));
   const description = business?.description || '';
   const headline = business?.landingHeadline || title;
   const services = (data?.published?.services ?? []).filter(service => service.online !== false && service.professionalIds?.length);
@@ -69,7 +78,11 @@ export function renderLanding(template, { slug, origin, data, fallbackName, sour
   const heroMark = logoPath
     ? `<img src="${logoPath}" width="144" height="144" alt="">`
     : `<span>${escape(initials(title))}</span>`;
-  const hero = `<section class="hero">
+  const cover = /^[a-f0-9-]{36}$/i.test(data?.coverVersion ?? '')
+    ? `<img class="hero-cover" src="/media/${slug}/cover/${data.coverVersion}.webp" alt="" fetchpriority="high">`
+    : '';
+  const hero = `<section class="hero${cover ? ' has-cover' : ''}">
+    ${cover}
     <div class="hero-copy">
       <h1>${escape(headline)}</h1>
       ${description || !business ? `<p class="description">${escape(description || 'Os horários aparecerão aqui quando o negócio publicar a agenda.')}</p>` : ''}
@@ -79,9 +92,9 @@ export function renderLanding(template, { slug, origin, data, fallbackName, sour
       </div>
       ${address ? `<p class="location">${escape(address)}</p>` : ''}
     </div>
-    <div class="hero-art" aria-hidden="true">
+    ${cover ? '' : `<div class="hero-art" aria-hidden="true">
       <div class="hero-mark${logoPath ? ' hero-mark-logo' : ''}">${heroMark}</div>
-    </div>
+    </div>`}
   </section>`;
   const summary = escape((description || title).slice(0, 240));
   const metadata = business ? '<meta name="description" content="' + summary + '">' +
@@ -91,6 +104,7 @@ export function renderLanding(template, { slug, origin, data, fallbackName, sour
   const links = business ? '<a href="' + plansPath + '">Planos</a>' : '';
 
   return fillTemplate(template, {
+    ...accessLinks(slug, utms),
     '__LANDING_STYLE__': style,
     '__TITLE__': escape(title),
     '__METADATA__': metadata,
@@ -103,15 +117,18 @@ export function renderLanding(template, { slug, origin, data, fallbackName, sour
   });
 }
 
-export function renderCustomerAccess(template, { slug, mode, data, fallbackName }) {
+export function renderCustomerAccess(template, { slug, mode, data, fallbackName, utms }) {
   const { title, brand, style } = businessIdentity(slug, data, fallbackName);
   const registering = mode === 'register';
+  const bookings = escape(withUtms(`/negocio/${slug}?visao=agendamentos`, utms));
   return fillTemplate(template, {
+    ...accessLinks(slug, utms),
     '__LANDING_STYLE__': style,
     '__TITLE__': escape(title),
     '__BRAND__': brand,
     '__SLUG__': slug,
     '__ACCESS_MODE__': mode,
+    '__BOOKING_HISTORY__': bookings,
     '__ACCESS_TITLE__': registering ? 'Crie sua conta' : 'Acesse seus agendamentos',
     '__ACCESS_ACTION__': registering ? 'Criar conta' : 'Entrar',
     '__LOGIN_CURRENT__': registering ? '' : 'aria-current="page"',
@@ -119,6 +136,6 @@ export function renderCustomerAccess(template, { slug, mode, data, fallbackName 
     '__SIGNUP_STATE__': registering ? '' : 'hidden disabled',
     '__PASSWORD_AUTOCOMPLETE__': registering ? 'new-password' : 'current-password',
     '__PASSWORD_MINIMUM__': registering ? 'minlength="8"' : '',
-    '__RECOVERY_LINK__': registering ? '' : '<a href="/negocio/' + slug + '?visao=agendamentos">Esqueci a senha</a>'
+    '__RECOVERY_LINK__': registering ? '' : `<a href="${bookings}">Esqueci a senha</a>`
   });
 }

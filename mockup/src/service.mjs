@@ -10,6 +10,7 @@ import { createCustomers } from './customers.mjs';
 import { createFinance } from './finance.mjs';
 import { createLicense } from './license.mjs';
 import { createNotifications } from './notifications.mjs';
+import { trafficReport } from './traffic.mjs';
 
 export async function audit(tx, actor, event, detail = {}) {
   await tx.query('INSERT INTO audit_events(id, actor_id, event_name, detail_json, created_at) VALUES (?, ?, ?, ?, ?)', [randomUUID(), actor, event, JSON.stringify(detail), Date.now()]);
@@ -320,26 +321,26 @@ export function createService(db, slug, config, dummyHash) {
     return { ok: true };
   }
   async function saveImage(user, kind, input) {
-    if (!['photo', 'logo'].includes(kind) || !input || Object.keys(input).some(key => !['image', 'revision'].includes(key))) throw failure(422, 'Confira a imagem escolhida.');
-    if (kind === 'logo') requireAdmin(user);
+    if (!['photo', 'logo', 'cover'].includes(kind) || !input || Object.keys(input).some(key => !['image', 'revision'].includes(key))) throw failure(422, 'Confira a imagem escolhida.');
+    if (kind !== 'photo') requireAdmin(user);
     else if (!['admin', 'professional'].includes(user.role) || !user.professional_id) throw failure(403, 'Somente o profissional pode alterar a própria foto.');
     await rateLimit(db, `image:${user.id}`, 30, 60 * 60 * 1000);
     const encoded = input.image === null ? null : await normalizeImage(input.image, kind);
     return db.transaction(async tx => {
       const settings = await readSettings(tx, true);
       if (settings.revision !== input.revision) throw failure(409, 'A configuração mudou. Recarregue antes de salvar a imagem.');
-      const key = kind === 'logo' ? 'logo' : user.professional_id;
+      const key = kind === 'photo' ? user.professional_id : kind;
       if (kind === 'photo' && !settings.draft.professionals.some(p => p.id === key && p.active)) throw failure(403, 'Seu cadastro profissional está inativo.');
       await tx.query('DELETE FROM business_images WHERE image_key = ?', [key]);
       if (encoded) await tx.query('INSERT INTO business_images(image_key, image_base64, version, updated_at) VALUES (?, ?, ?, ?)', [key, encoded, randomUUID(), Date.now()]);
       await tx.query('UPDATE business_settings SET revision = revision + 1 WHERE id = 1');
-      await audit(tx, user.id, kind === 'logo' ? 'business_logo_changed' : 'profile_photo_changed', { removed: encoded === null });
+      await audit(tx, user.id, kind === 'photo' ? 'profile_photo_changed' : `business_${kind}_changed`, { removed: encoded === null });
       return { revision: settings.revision + 1 };
     });
   }
   async function image(key, version, rawToken) {
     const settings = await readSettings(db);
-    const published = key === 'logo' ? Boolean(settings.published) : settings.published?.professionals.some(p => p.id === key);
+    const published = ['logo', 'cover'].includes(key) ? Boolean(settings.published) : settings.published?.professionals.some(p => p.id === key);
     if (!published) {
       const user = await session(rawToken);
       if (!['admin', 'reception'].includes(user.role) && user.professional_id !== key) throw failure(403, 'Imagem não disponível neste acesso.');
@@ -349,6 +350,10 @@ export function createService(db, slug, config, dummyHash) {
     return Buffer.from(row.image_base64, 'base64');
   }
   return { cookieName, session, login, activate, changePassword, recovery, operatorAccess, operatorRecovery, withCurrentSession, assertCurrentSession: async (tx, actor, settings) => currentSession(tx, actor, settings ?? await readSettings(tx, true)), snapshot, save, publish, invite, ownReceiving, ownHours, accessStatus, saveImage, image, booking, payments, subscriptions, customers, finance, license, notifications,
+    async traffic(user, days) {
+      if (user.role !== 'admin') throw failure(403, 'Somente o gestor pode consultar o relatório de acessos.');
+      return trafficReport(db, days, (config.now ?? Date.now)());
+    },
     async businessName() { return (await readSettings(db)).draft.business.name; },
     async logout(raw) { await db.query('DELETE FROM sessions WHERE token_hash = ?', [digest(raw ?? '')]); },
     async publicCatalog() { const settings = await readSettings(db); if (!settings.published) throw failure(404, 'Este negócio ainda está preparando seu catálogo.'); return booking.catalogInfo(settings, withImages(settings.published, await imageUrls())); },

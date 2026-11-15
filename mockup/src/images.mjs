@@ -17,7 +17,8 @@ export async function normalizeImage(data, kind) {
     const image = sharp(bytes, { failOn: 'warning', limitInputPixels: 20000000, animated: false });
     const meta = await image.metadata();
     if (!['jpeg', 'png', 'webp'].includes(meta.format) || meta.format !== match[1] || (meta.pages ?? 1) > 1) throw new Error('Unsupported raster');
-    const output = await image.rotate().resize(512, 512, { fit: kind === 'logo' ? 'inside' : 'cover', withoutEnlargement: true }).webp({ quality: 82, effort: 3 }).toBuffer();
+    const size = kind === 'cover' ? { width: 1600, height: 1000, fit: 'inside' } : { width: 512, height: 512, fit: kind === 'logo' ? 'inside' : 'cover' };
+    const output = await image.rotate().resize({ ...size, withoutEnlargement: true }).webp({ quality: kind === 'cover' ? 76 : 82, effort: 3 }).toBuffer();
     if (output.length > 512 * 1024) throw new Error('Output too large');
     return output.toString('base64');
   } catch { throw failure(422, 'Não foi possível ler essa imagem. Escolha outro arquivo JPG, PNG ou WebP.'); }

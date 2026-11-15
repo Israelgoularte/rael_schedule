@@ -2,6 +2,7 @@ import { openDatabase } from './database.mjs';
 import { provisionTenant, createService } from './service.mjs';
 import { passwordHash, failure, rateLimit } from './security.mjs';
 import { createOperations } from './operations.mjs';
+import { countLandingView } from './traffic.mjs';
 import { createPlatformNotifications } from './platform-notifications.mjs';
 import { createOnboarding } from './onboarding.mjs';
 import { createIntegrationSettings } from './integrations.mjs';
@@ -219,13 +220,18 @@ export async function createFoundation(config) {
     async initializeStandalone(slug) { await ensure(slug); },
     async publicLanding(slug, { photos = false } = {}) {
       const source = await publicShareSource(slug);
-      if (!photos || !source?.published?.professionals?.length) return source;
-      const activeIds = new Set(source.published.professionals.map(person => person.id));
+      if (!photos || !source) return source;
+      const activeIds = new Set((source.published.professionals ?? []).map(person => person.id));
       const { db } = await ensure(slug);
       const images = await db.query("SELECT image_key, version FROM business_images WHERE image_key <> 'logo'");
-      return { ...source, photoVersions: Object.fromEntries(images
+      return { ...source, coverVersion: images.find(image => image.image_key === 'cover')?.version,
+        photoVersions: Object.fromEntries(images
         .filter(image => activeIds.has(image.image_key))
         .map(image => [image.image_key, image.version])) };
+    },
+    async recordLandingView(slug, utms) {
+      const { db } = await ensure(slug);
+      await countLandingView(db, utms, (config.now ?? Date.now)());
     },
     async publicSharePreview(slug) { return (await publicShareSource(slug))?.identity ?? null; },
     publicShareImage,
@@ -341,7 +347,7 @@ export async function createFoundation(config) {
         finally { if (services.has(notification[1])) wakeNotifications(notification[1]); }
         return true;
       }
-      const media = /^\/media\/([a-z0-9][a-z0-9-]{1,47})\/(logo|[a-f0-9-]{36})\/([a-f0-9-]{36})\.webp$/.exec(url.pathname);
+      const media = /^\/media\/([a-z0-9][a-z0-9-]{1,47})\/(logo|cover|[a-f0-9-]{36})\/([a-f0-9-]{36})\.webp$/.exec(url.pathname);
       if (media) {
         res.setHeader('Cache-Control', 'no-store');
         res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -468,6 +474,7 @@ export async function createFoundation(config) {
         if (path === 'finance/appointment' && req.method === 'GET') { json(res, 200, await service.finance.appointmentView(user, url.searchParams.get('id'))); return true; }
         if (path === 'finance/manual' && req.method === 'POST') { json(res, 200, await service.finance.manual(user, await body(req))); return true; }
         if (path === 'dashboard' && req.method === 'GET') { json(res, 200, await service.finance.dashboard(user, Object.fromEntries(url.searchParams))); return true; }
+        if (path === 'traffic' && req.method === 'GET') { json(res, 200, await service.traffic(user, Number(url.searchParams.get('days') ?? 30))); return true; }
         if (path === 'subscriptions' && req.method === 'GET') { json(res, 200, { ...await service.subscriptions.plans(user), ...await service.subscriptions.list({ staff: user }) }); return true; }
         if (path === 'subscriptions/overview' && req.method === 'GET') { json(res, 200, await service.subscriptions.overview(user, Object.fromEntries(url.searchParams))); return true; }
         if (path === 'subscriptions/plan-members' && req.method === 'GET') { json(res, 200, await service.subscriptions.planMembers(user, Object.fromEntries(url.searchParams))); return true; }
@@ -513,7 +520,10 @@ export async function createFoundation(config) {
         }
         if (path === 'setup' && req.method === 'GET') { json(res, 200, await service.snapshot(user)); return true; }
         if (path === 'setup' && req.method === 'PUT') { json(res, 200, await service.save(user, await body(req))); return true; }
-        if (['profile-photo', 'business-logo'].includes(path) && req.method === 'PUT') { json(res, 200, await service.saveImage(user, path === 'business-logo' ? 'logo' : 'photo', await body(req, 3 * 1024 * 1024))); return true; }
+        if (['profile-photo', 'business-logo', 'business-cover'].includes(path) && req.method === 'PUT') {
+          const kind = { 'profile-photo': 'photo', 'business-logo': 'logo', 'business-cover': 'cover' }[path];
+          json(res, 200, await service.saveImage(user, kind, await body(req, 3 * 1024 * 1024))); return true;
+        }
         if (path === 'publish' && req.method === 'POST') { json(res, 200, await service.publish(user, (await body(req)).revision)); return true; }
         if (path === 'team/invite' && req.method === 'POST') { json(res, 201, await service.invite(user, await body(req))); return true; }
         if (path === 'team/recovery' && req.method === 'POST') {

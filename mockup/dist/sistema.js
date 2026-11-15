@@ -79,19 +79,35 @@ function imageEditor(kind, url, name, collapsible = false) {
   const editor = `<section class="image-editor"><div>${avatar(name, url, kind)}</div><div><h3>${kind === 'logo' ? 'Logo do negócio' : 'Sua foto de perfil'}</h3><p class="small muted">${kind === 'logo' ? 'Aparece no topo da página pública. Somente o gestor do negócio altera a logo.' : 'Ajuda o cliente a reconhecer quem vai atender. Cada profissional cuida da própria foto.'}</p><div class="row spaced"><label class="button secondary file-picker">${url ? 'Trocar imagem' : kind === 'logo' ? 'Escolher logo' : 'Escolher foto'}<input type="file" accept="image/jpeg,image/png,image/webp" data-image-kind="${kind}" aria-label="${kind === 'logo' ? 'Escolher logo do negócio' : 'Escolher foto de perfil'}"></label>${url ? button('Remover imagem', 'remove-image', 'secondary', `data-kind="${kind}"`) : ''}</div><p class="small muted spaced">JPG, PNG ou WebP, até 8 MB. ${kind === 'logo' ? 'A proporção da logo é preservada.' : 'A foto usa um recorte central quadrado.'} A imagem será pública quando o catálogo estiver publicado.</p></div></section>`;
   return collapsible ? `<div class="setup-image-options">${setupDisclosure(`image-${kind}`, kind === 'logo' ? 'Logo do negócio · adicionar ou trocar' : 'Foto de perfil · adicionar ou trocar', editor, { optional: true })}</div>` : editor;
 }
+function coverEditor(url) {
+  return `<section class="card spaced cover-settings">
+    <div>
+      <h3>Foto de capa da página inicial</h3>
+      <p class="small muted">A imagem aparece atrás do título da vitrine. Use uma foto horizontal, de preferência com o assunto principal à direita.</p>
+    </div>
+    ${url ? `<img class="cover-preview" src="${esc(url)}" alt="Foto de capa atual" decoding="async">` : ''}
+    <div class="row">
+      <label class="button secondary file-picker">${url ? 'Trocar foto de capa' : 'Escolher foto de capa'}<input type="file" accept="image/jpeg,image/png,image/webp" data-image-kind="cover" aria-label="Escolher foto de capa"></label>
+      ${url ? button('Remover capa', 'remove-image', 'secondary', 'data-kind="cover"') : ''}
+    </div>
+    <small class="muted">JPG, PNG ou WebP, até 8 MB. A capa aparece assim que for salva, se o catálogo já estiver publicado.</small>
+  </section>`;
+}
 async function prepareImage(file, kind) {
   if (!file || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) throw new Error('Escolha um arquivo JPG, PNG ou WebP de até 8 MB.');
   const url = URL.createObjectURL(file), image = new Image();
   try {
     await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Não foi possível abrir essa imagem. Escolha outro arquivo.')); image.src = url; });
     const canvas = document.createElement('canvas');
-    const scale = Math.min(1, 512 / Math.max(image.naturalWidth, image.naturalHeight));
+    const scale = kind === 'cover'
+      ? Math.min(1, 1600 / image.naturalWidth, 1000 / image.naturalHeight)
+      : Math.min(1, 512 / Math.max(image.naturalWidth, image.naturalHeight));
     canvas.width = kind === 'photo' ? 512 : Math.max(1, Math.round(image.naturalWidth * scale));
     canvas.height = kind === 'photo' ? 512 : Math.max(1, Math.round(image.naturalHeight * scale));
     const ctx = canvas.getContext('2d');
     if (kind === 'photo') { const side = Math.min(image.naturalWidth, image.naturalHeight); ctx.drawImage(image, (image.naturalWidth - side) / 2, (image.naturalHeight - side) / 2, side, side, 0, 0, 512, 512); }
     else ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/webp', 0.85);
+    return canvas.toDataURL('image/webp', kind === 'cover' ? 0.78 : 0.85);
   } finally { URL.revokeObjectURL(url); }
 }
 async function saveImage(kind, image) {
@@ -101,8 +117,9 @@ async function saveImage(kind, image) {
     if (model.draft) await flush();
     while (ownDirty) await saveOwnHours();
     status = 'Salvando imagem…'; updateStatus();
-    const result = await request(kind === 'logo' ? 'business-logo' : 'profile-photo', { method: 'PUT', body: JSON.stringify({ image, revision: model.revision }) });
-    model.revision = result.revision; status = 'Imagem salva'; await load(); toast(image === null ? 'Imagem removida.' : 'Imagem salva no perfil.');
+    const path = { logo: 'business-logo', photo: 'profile-photo', cover: 'business-cover' }[kind];
+    const result = await request(path, { method: 'PUT', body: JSON.stringify({ image, revision: model.revision }) });
+    model.revision = result.revision; status = 'Imagem salva'; await load(); toast(image === null ? 'Imagem removida.' : kind === 'cover' ? 'Foto de capa salva.' : 'Imagem salva no perfil.');
   })().finally(() => { imageSaving = null; });
   return imageSaving;
 }
@@ -153,7 +170,7 @@ function finishOperationReturn() {
 }
 function businessStep() {
   const b = model.draft.business;
-  return `<div class="card spaced"><h2>Como seu cliente conhece você?</h2>${field('Nome público do negócio', 'business.name', b.name, { help: 'Pode ser o nome da empresa ou seu nome profissional.', extra: 'maxlength="120" autocomplete="organization"' })}<label class="field"><span>Que tipo de serviço você oferece?</span><select data-path="business.segment"><option value="">Escolha o segmento mais próximo</option>${model.segments.map(segment => `<option value="${segment.id}" ${segment.id === b.segment ? 'selected' : ''}>${esc(segment.label)}</option>`).join('')}</select><small>Isso ajuda com exemplos. Você pode personalizar seus serviços.</small></label><div class="grid2">${field('Telefone de contato', 'business.phone', b.phone, { type: 'tel', help: 'Com DDD. Será exibido no catálogo.', extra: 'maxlength="25" autocomplete="tel"' })}${field('E-mail de contato do negócio', 'business.email', b.email, { type: 'email', help: 'Dado de contato. Não enviamos mensagens automaticamente.', extra: 'maxlength="254"' })}</div><label class="field"><span>Como você atende?</span><select data-path="business.mode"><option value="presencial" ${b.mode === 'presencial' ? 'selected' : ''}>Em um endereço fixo</option><option value="online" ${b.mode === 'online' ? 'selected' : ''}>Online</option></select></label>${b.mode === 'presencial' ? field('Endereço do atendimento', 'business.address', b.address, { help: 'Confira o endereço que aparecerá para o cliente.', extra: 'maxlength="300"' }) : `<label class="field"><span>Como o cliente receberá o acesso ao atendimento online? (opcional)</span><textarea data-path="business.onlineInstructions" maxlength="1000" placeholder="Ex.: Entrarei em contato pelo telefone informado até 30 minutos antes para combinar o acesso.">${esc(b.onlineInstructions)}</textarea><small>Informe quem entra em contato, por qual canal e com que antecedência. Este texto é público: não inclua senhas nem links privados de reunião. O sistema não envia instruções automaticamente.</small></label>`}<label class="field"><span>Horário do seu negócio</span><select data-path="business.timeZone">${Object.entries(timeZones).map(([zone, label]) => `<option value="${zone}" ${b.timeZone === zone ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select><small>Define o horário da agenda, não a localização do negócio.</small></label><label class="field"><span>Apresente seu trabalho em poucas palavras</span><textarea data-path="business.description" maxlength="1000">${esc(b.description)}</textarea><small>Esse texto aparecerá no catálogo público e na página inicial.</small></label><div class="grid2">${field('Título da página inicial', 'business.landingHeadline', b.landingHeadline ?? '', { help: 'Se deixar em branco, será usado o nome do negócio.', extra: 'maxlength="140"' })}${field('Cor da página inicial', 'business.landingColor', b.landingColor || '#205340', { type: 'color' })}</div><p class="muted small">As alterações entram na página inicial quando o catálogo é publicado.</p></div>${imageEditor('logo', model.images?.logo, b.name, true)}`;
+  return `<div class="card spaced"><h2>Como seu cliente conhece você?</h2>${field('Nome público do negócio', 'business.name', b.name, { help: 'Pode ser o nome da empresa ou seu nome profissional.', extra: 'maxlength="120" autocomplete="organization"' })}<label class="field"><span>Que tipo de serviço você oferece?</span><select data-path="business.segment"><option value="">Escolha o segmento mais próximo</option>${model.segments.map(segment => `<option value="${segment.id}" ${segment.id === b.segment ? 'selected' : ''}>${esc(segment.label)}</option>`).join('')}</select><small>Isso ajuda com exemplos. Você pode personalizar seus serviços.</small></label><div class="grid2">${field('Telefone de contato', 'business.phone', b.phone, { type: 'tel', help: 'Com DDD. Será exibido no catálogo.', extra: 'maxlength="25" autocomplete="tel"' })}${field('E-mail de contato do negócio', 'business.email', b.email, { type: 'email', help: 'Dado de contato. Não enviamos mensagens automaticamente.', extra: 'maxlength="254"' })}</div><label class="field"><span>Como você atende?</span><select data-path="business.mode"><option value="presencial" ${b.mode === 'presencial' ? 'selected' : ''}>Em um endereço fixo</option><option value="online" ${b.mode === 'online' ? 'selected' : ''}>Online</option></select></label>${b.mode === 'presencial' ? field('Endereço do atendimento', 'business.address', b.address, { help: 'Confira o endereço que aparecerá para o cliente.', extra: 'maxlength="300"' }) : `<label class="field"><span>Como o cliente receberá o acesso ao atendimento online? (opcional)</span><textarea data-path="business.onlineInstructions" maxlength="1000" placeholder="Ex.: Entrarei em contato pelo telefone informado até 30 minutos antes para combinar o acesso.">${esc(b.onlineInstructions)}</textarea><small>Informe quem entra em contato, por qual canal e com que antecedência. Este texto é público: não inclua senhas nem links privados de reunião. O sistema não envia instruções automaticamente.</small></label>`}<label class="field"><span>Horário do seu negócio</span><select data-path="business.timeZone">${Object.entries(timeZones).map(([zone, label]) => `<option value="${zone}" ${b.timeZone === zone ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select><small>Define o horário da agenda, não a localização do negócio.</small></label><label class="field"><span>Apresente seu trabalho em poucas palavras</span><textarea data-path="business.description" maxlength="1000">${esc(b.description)}</textarea><small>Esse texto aparecerá no catálogo público e na página inicial.</small></label><div class="grid2">${field('Título da página inicial', 'business.landingHeadline', b.landingHeadline ?? '', { help: 'Se deixar em branco, será usado o nome do negócio.', extra: 'maxlength="140"' })}${field('Cor da página inicial', 'business.landingColor', b.landingColor || '#205340', { type: 'color' })}</div><p class="muted small">As alterações entram na página inicial quando o catálogo é publicado.</p></div>${imageEditor('logo', model.images?.logo, b.name, true)}${coverEditor(model.images?.cover)}`;
 }
 function peopleStep() {
   const active = model.draft.professionals.filter(p => p.active).length;
@@ -474,7 +491,7 @@ document.addEventListener('click', async event => {
     if (imageSaving && !['close-dialog', 'copy-link'].includes(action)) await imageSaving;
     if (receivingSave && !['close-dialog', 'copy-link'].includes(action)) await receivingSave;
     if (action === 'close-dialog') { dialog.close(); dialog.innerHTML = ''; return; }
-    if (action === 'remove-image') { modal('Remover esta imagem?', `<p>O perfil voltará a mostrar as iniciais. A imagem também deixará de ser exibida no catálogo publicado.</p><div class="row spaced">${button('Manter imagem', 'close-dialog', 'secondary')}${button('Remover imagem', 'confirm-remove-image', '', `data-kind="${target.dataset.kind}"`)}</div>`); return; }
+    if (action === 'remove-image') { modal('Remover esta imagem?', `<p>${target.dataset.kind === 'cover' ? 'A vitrine voltará a destacar o logo do negócio.' : 'A imagem deixará de ser exibida no catálogo publicado.'}</p><div class="row spaced">${button('Manter imagem', 'close-dialog', 'secondary')}${button('Remover imagem', 'confirm-remove-image', '', `data-kind="${target.dataset.kind}"`)}</div>`); return; }
     if (action === 'confirm-remove-image') { target.disabled = true; await saveImage(target.dataset.kind, null); dialog.close(); return; }
     if (action === 'copy-link') { const input = dialog.querySelector('#staff-access-url'), feedback = dialog.querySelector('#staff-access-copy-status'); if (!input) return; try { await navigator.clipboard.writeText(input.value); feedback.textContent = 'Link copiado. Entregue apenas à pessoa conferida.'; } catch { input.focus(); input.select(); feedback.textContent = 'Selecione e copie o endereço acima.'; } return; }
     if (action === 'recovery-help') {

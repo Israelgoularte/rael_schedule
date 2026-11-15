@@ -23,7 +23,7 @@ form.addEventListener('submit', async event => {
       const result = await response.json();
       throw new Error(result.error || 'Não foi possível acessar a agenda.');
     }
-    location.assign('/negocio/' + slug + '?visao=agendamentos');
+    location.assign(document.body.dataset.bookings);
   } catch (error) {
     status.textContent = error instanceof TypeError ? 'Falha na conexão. Tente novamente.' : error.message;
   } finally {

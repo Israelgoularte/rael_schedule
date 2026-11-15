@@ -8,6 +8,7 @@
   let drawer = null, notificationContext;
   const paths = {
     painel: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+    acessos: '<path d="M3 20h18M6 16v-4m6 4V7m6 9V4"/>',
     agenda: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h3"/>',
     clientes: '<circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/>',
     financeiro: '<path d="M3 20h18M6 16v-5M12 16V4M18 16V8"/>',
@@ -33,6 +34,7 @@
     return [
       { key: 'painel', label: 'Visão geral', group: 'Dia a dia', href: `${base}/painel` }, local('agenda', 'Agenda', 'open-agenda', 'agenda', 'Dia a dia'),
       { key: 'clientes', label: 'Clientes', group: 'Dia a dia', href: `${base}/clientes` }, { key: 'financeiro', label: 'Financeiro', group: 'Dia a dia', href: `${base}/financeiro` },
+      ...(user.role === 'admin' ? [{ key: 'acessos', label: 'Acessos', group: 'Dia a dia', href: `${base}/acessos` }] : []),
       ...(['admin', 'professional'].includes(user.role) ? [{ key: 'memberships', label: 'Planos e Assinaturas', group: 'Serviços e planos', href: `${base}/assinaturas` }] : []),
       local('profile', user.role === 'admin' ? 'Negócio' : user.role === 'professional' ? 'Meu perfil' : 'Meu acesso', 'open-profile', 'perfil', 'Configurações'),
       ...(user.role === 'admin' ? [local('team', 'Equipe', 'team', 'equipe', 'Configurações'), { key: 'receiving', label: 'Mercado Pago', group: 'Configurações', href: `${base}/recebimentos` }] : []),

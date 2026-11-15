@@ -7,6 +7,7 @@ const tables = {
   users: ['id', 'email', 'name', 'role', 'professional_id', 'password_hash', 'active', 'created_at'],
   receiving_preferences: ['professional_id', 'require_payment', 'connection_status'],
   business_images: ['image_key', 'image_base64', 'version', 'updated_at'],
+  landing_traffic: ['hour_at', 'campaign_key', 'utm_json', 'hits'],
   customers: ['id', 'name', 'phone', 'email', 'password_hash', 'created_at'],
   appointments: ['id', 'customer_id', 'professional_id', 'service_id', 'starts_at', 'ends_at', 'occupied_until', 'status', 'revision', 'snapshot_json', 'metadata_json', 'created_at', 'updated_at'],
   calendar_blocks: ['id', 'professional_id', 'starts_at', 'ends_at', 'reason', 'active', 'created_by', 'created_at'],
@@ -123,6 +124,7 @@ function checkedDatabasePayload(encrypted, key) {
   if (payload?.tables && !Object.hasOwn(payload.tables, 'mp_diagnostic_probes')) payload.tables.mp_diagnostic_probes = [];
   if (!payload.tables || Object.keys(payload.tables).sort().join(',') !== Object.keys(tables).sort().join(',') || Object.values(payload.tables).some(rows => !Array.isArray(rows))) throw new Error('Backup inválido.');
   // Backups before migration 11 have these rows but no attribution column.
+  if (payload?.tables && !Object.hasOwn(payload.tables, 'landing_traffic')) payload.tables.landing_traffic = [];
   // Normalize only a missing column; authenticated metadata is retained exactly.
   for (const name of ['appointments', 'operation_requests']) for (const row of payload.tables[name]) if (row && typeof row === 'object' && !Object.hasOwn(row, 'metadata_json')) row.metadata_json = '{}';
   // Older backups cannot tell us which email was used for payment.

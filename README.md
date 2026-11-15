@@ -31,6 +31,8 @@ Esse fluxo requer um plano com Apps Web Node e conectividade ao MySQL. Consulte 
 
 ## Operação
 
+Em **Negócio**, adicione uma foto horizontal de capa para a página inicial. A capa pode ser trocada ou removida sem alterar o logo. Em **Acessos**, o gestor pode consultar aberturas da vitrine e agendamentos criados nos últimos 7, 30 ou 90 dias, agrupados pelos cinco parâmetros UTM. Por exemplo, compartilhe `https://SEU_DOMINIO/?utm_source=instagram&utm_medium=social&utm_campaign=lancamento`. O relatório conta aberturas, e não visitantes únicos.
+
 - Comece com recebimentos manuais. Para Mercado Pago, configure `RAEL_INTEGRATION_KEY` com 32 bytes aleatórios em hexadecimal, conecte a conta do negócio e homologue antes de ativar `RAEL_MP_LIVE_APPROVED=1`.
 - O SMTP é opcional. Configure `RAEL_RECOVERY_EMAIL_ENABLED=1`, a chave de integração e as variáveis `RAEL_SMTP_HOST`, `RAEL_SMTP_PORT`, `RAEL_SMTP_USER` e `RAEL_SMTP_PASSWORD`. A conta SMTP também é o remetente.
 - Para backup lógico cifrado, defina `RAEL_BACKUP_KEY` com 32 bytes aleatórios em hexadecimal apenas no ambiente da tarefa e use `node tools/manage.mjs backup --slug agenda --output /caminho/privado/agenda.backup` a partir da pasta `mockup`. Use `restore --slug agenda --input caminho` em um MySQL vazio com as variáveis de inicialização do gestor ausentes. Mantenha backup e chave separados e ensaie a restauração antes de migrar dados.
