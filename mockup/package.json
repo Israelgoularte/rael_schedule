@@ -1,6 +1,6 @@
 {
   "name": "rael-agendamentos",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Base e configuração guiada do Rael Agendamentos em Node.js",
   "type": "module",

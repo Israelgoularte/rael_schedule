@@ -14,7 +14,8 @@ const descriptions = { acessos: 'Veja de onde vieram os acessos à vitrine e as 
 let operationsAvailable = false;
 let user, csrf = '', setup, testMode = false, model, busy = false, error = '', q = '', offset = 0, appointmentOffset = 0, historyOffset = 0, detailCustomer = null, financeDetail = null, manualKey, manualStorageKey, importRows, importPreview, importKey, importRevision = 0;
 let filters = { from: '', to: '', professionalId: '' };
-let trafficDays = '30';
+const requestedTrafficDays = new URLSearchParams(location.search).get('days');
+const trafficDays = ['7', '30', '90'].includes(requestedTrafficDays) ? requestedTrafficDays : '30';
 const button = (label, action, extra = '', secondary = true) => `<button type="button" class="button ${secondary ? 'secondary' : ''}" data-manage="${action}" ${extra}>${label}</button>`;
 const field = (label, name, value = '', extra = '', type = 'text') => `<label class="field"><span>${esc(label)}</span><input name="${name}" type="${type}" value="${esc(value)}" ${extra}></label>`;
 const formatDate = at => new Intl.DateTimeFormat('pt-BR', { timeZone: model?.timeZone ?? setup?.draft?.business.timeZone ?? 'America/Sao_Paulo', dateStyle: 'short' }).format(at);
@@ -44,7 +45,7 @@ function traffic() {
   const fmt = value => Number(value).toLocaleString('pt-BR');
   const columns = [['utm_source', 'Origem'], ['utm_medium', 'Meio'], ['utm_campaign', 'Campanha'], ['utm_content', 'Conteúdo'], ['utm_term', 'Termo']];
   const rows = model.campaigns.map(({ utms, visits, bookings }) => `<tr>${columns.map(([key], index) => `<td>${esc(utms[key] ?? (index === 0 && !Object.keys(utms).length ? 'Sem UTM' : '—'))}</td>`).join('')}<td class="traffic-number">${fmt(visits)}</td><td class="traffic-number">${fmt(bookings)}</td></tr>`).join('');
-  return `<form id="traffic-filter" class="management-filters card">
+  return `<form method="get" class="management-filters card">
       <label class="field"><span>Período</span><select name="days">${[7, 30, 90].map(days => `<option value="${days}" ${days === model.days ? 'selected' : ''}>Últimos ${days} dias</option>`).join('')}</select></label>
       <button class="button" type="submit">Aplicar filtro</button>
     </form>
@@ -135,7 +136,6 @@ document.addEventListener('submit', async e => {
   try {
     if (form.id === 'customer-filter') { q = data.q.trim(); offset = 0; await load(); }
     if (form.id === 'period-filter') { filters = { from: data.from, to: data.to, professionalId: data.professionalId ?? '' }; offset = 0; appointmentOffset = 0; await load(); }
-    if (form.id === 'traffic-filter') { trafficDays = data.days; await load(); }
     if (form.id === 'customer-edit') { const result = await api('customers/save', { name: data.name, phone: data.phone, email: data.email, notes: data.notes, ...(detailCustomer ? { id: detailCustomer.id, revision: detailCustomer.revision } : {}), ...(data.identityConfirmed ? { identityConfirmed: true } : {}) }); await load(); await openCustomer(result.id); toast('Cadastro salvo.'); }
     if (form.id === 'manual-entry') { await api('finance/manual', { appointmentId: financeDetail.appointmentId, amountCents: moneyInput(data.amount), method: data.method, date: data.date, note: data.note, idempotencyKey: manualKey, ...(refundOf ? { refundOf } : {}) }); try { sessionStorage.removeItem(manualStorageKey); } catch {} await load(); refundOf = null; await openFinance(financeDetail.appointmentId); toast('Lançamento registrado no histórico.'); }
     if (form.id === 'import-preview') {
