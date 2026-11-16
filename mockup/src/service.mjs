@@ -11,6 +11,7 @@ import { createFinance } from './finance.mjs';
 import { createLicense } from './license.mjs';
 import { createPro } from './pro.mjs';
 import { createInstallationLicense } from './installation-license.mjs';
+import { communityProfessionalSeats } from './professional-seats.mjs';
 import { createNotifications } from './notifications.mjs';
 import { trafficReport } from './traffic.mjs';
 
@@ -66,10 +67,11 @@ export function createService(db, slug, config, dummyHash) {
   const cookieName = `${config.origin.startsWith('https://') ? '__Host-' : ''}rael_session_${slug}`;
   const license = createLicense(db, slug, config);
   const installationLicense = createInstallationLicense(db, config.standalone && config.installationLicensing);
+  const professionalSeats = installationLicense ?? (config.standalone ? communityProfessionalSeats : null);
   const pro = createPro(db, installationLicense, config.pro);
   const payments = createPayments(db, slug, config, { authorizeWrite: currentSession, pro });
   const subscriptions = createSubscriptions(db, slug, config, payments, license);
-  const booking = createBookings(db, slug, config, dummyHash, payments, subscriptions, license, installationLicense, pro);
+  const booking = createBookings(db, slug, config, dummyHash, payments, subscriptions, license, professionalSeats, pro);
   const customers = createCustomers(db, config);
   const finance = createFinance(db, config, payments);
   const notifications = createNotifications(db, slug, config, license);
@@ -119,7 +121,8 @@ export function createService(db, slug, config, dummyHash) {
     const settings = await readSettings(db), prefs = await preferences(), images = await imageUrls();
     if (user.role === 'admin') {
       const users = await db.query('SELECT id, name, email, role, professional_id, active, password_hash FROM users');
-      return { ...settings, images, user: userView(user), preferences: prefs.map(p => ({ ...p, require_payment: Boolean(p.require_payment) })), teamAccess: users.map(u => ({ ...userView(u), active: Boolean(u.active), accepted: Boolean(u.password_hash) })), report: validationReport(settings.draft, prefs), publication: publicationState(settings.draft, settings.published, slug), segments: (await import('./domain.mjs')).segments };
+      const professionalPlan = await professionalSeats?.current();
+      return { ...settings, images, user: userView(user), ...(professionalPlan ? { professionalPlan: { plan: professionalPlan.plan, seats: professionalPlan.seats } } : {}), preferences: prefs.map(p => ({ ...p, require_payment: Boolean(p.require_payment) })), teamAccess: users.map(u => ({ ...userView(u), active: Boolean(u.active), accepted: Boolean(u.password_hash) })), report: validationReport(settings.draft, prefs), publication: publicationState(settings.draft, settings.published, slug), segments: (await import('./domain.mjs')).segments };
     }
     if (user.role === 'professional') {
       const professional = settings.draft.professionals.find(p => p.id === user.professional_id);
@@ -221,7 +224,7 @@ export function createService(db, slug, config, dummyHash) {
     return db.transaction(async tx => {
       const settings = await readSettings(tx, true);
       if (settings.revision !== input.revision) throw failure(409, 'A configuração mudou em outra sessão. Recarregue antes de salvar para não perder alterações.');
-      await installationLicense?.assertSeats(tx, settings, draft.professionals);
+      await professionalSeats?.assertSeats(tx, settings, draft.professionals);
       const users = await tx.query('SELECT * FROM users');
       for (const bound of users.filter(u => u.professional_id)) {
         const p = draft.professionals.find(p => p.id === bound.professional_id);
@@ -242,7 +245,7 @@ export function createService(db, slug, config, dummyHash) {
     return db.transaction(async tx => {
       const settings = await readSettings(tx, true);
       if (revision !== settings.revision) throw failure(409, 'A configuração mudou. Recarregue antes de publicar.');
-      await installationLicense?.assertSeats(tx, settings, settings.draft.professionals, true);
+      await professionalSeats?.assertSeats(tx, settings, settings.draft.professionals, true);
       const report = validationReport(settings.draft, await preferences(tx));
       if (!report.ready) throw failure(422, report.steps.flatMap(step => step.issues).join(' '));
       const snapshot = publicSnapshot(settings.draft, slug), now = Date.now();

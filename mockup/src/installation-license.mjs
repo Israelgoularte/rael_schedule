@@ -1,10 +1,10 @@
 import { createPublicKey, randomBytes, randomUUID, verify } from 'node:crypto';
 import { readSettings } from './database.mjs';
 import { failure, isEmail, normalizeEmail } from './security.mjs';
+import { communitySeats, createProfessionalSeats } from './professional-seats.mjs';
 
 const origin = 'https://licencas.raelapps.com';
 const product = 'rael-schedule';
-const communitySeats = 2;
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const testConfig = {
   keyId: 'rael-homologacao-v1',
@@ -170,22 +170,8 @@ export function createInstallationLicense(db, enabled, { send = fetch, now = Dat
     return name === 'checkout' ? { url: checkoutUrl(result.url) } : result;
   }
 
-  async function assertSeats(tx, settings, professionals, publishing = false) {
-    const active = professionals.filter(person => person.active);
-    const { seats } = await current(tx);
-    if (active.length <= seats) return;
-    const previouslyActive = new Set(settings.draft.professionals.filter(person => person.active).map(person => person.id));
-    if (publishing || active.some(person => !previouslyActive.has(person.id))) {
-      throw failure(422, `A licença permite até ${seats} profissionais ativos. Inative os excedentes ou atualize a licença em Configurações → Licença do sistema.`);
-    }
-  }
-
-  async function bookable(tx, settings) {
-    const active = new Set(settings.draft.professionals.filter(person => person.active).map(person => person.id));
-    const { seats } = await current(tx);
-    const published = settings.published?.professionals ?? [];
-    return new Set(published.filter(person => active.has(person.id)).slice(0, seats).map(person => person.id));
-  }
+  const professionalSeats = createProfessionalSeats(current,
+    seats => `A licença permite até ${seats} profissionais ativos. Inative os excedentes ou atualize a licença em Configurações → Licença do sistema.`);
 
   async function proAccess(conn = db) {
     const time = now();
@@ -196,5 +182,5 @@ export function createInstallationLicense(db, enabled, { send = fetch, now = Dat
     return { features: signed.features, version: signed.licenseId + ':' + signed.activationVersion };
   }
 
-  return { view, action, sweep: sync, current, assertSeats, bookable, proAccess };
+  return { view, action, sweep: sync, ...professionalSeats, proAccess };
 }

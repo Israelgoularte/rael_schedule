@@ -16,15 +16,16 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   await new Promise(resolve => listener.once('listening', resolve));
   const { port } = listener.address();
   await new Promise(resolve => listener.close(resolve));
-  const origin = 'http://127.0.0.1:' + port;
-  const token = randomBytes(32).toString('base64url');
+  const transport = 'http://127.0.0.1:' + port;
   const mysql = process.env.TEST_MYSQL_DB;
+  const origin = mysql ? 'https://agenda.example.test' : transport;
+  const token = randomBytes(32).toString('base64url');
   const child = spawn(process.execPath, ['server.js'], {
     cwd: fileURLToPath(new URL('..', import.meta.url)),
     env: {
       PATH: process.env.PATH, SystemRoot: process.env.SystemRoot,
       APP_ORIGIN: origin, PORT: String(port), HOST: '127.0.0.1',
-      ...(mysql ? { DB_HOST: '127.0.0.1', DB_PORT: process.env.TEST_MYSQL_PORT, DB_NAME: mysql,
+      ...(mysql ? { NODE_ENV: 'production', DB_HOST: '127.0.0.1', DB_PORT: process.env.TEST_MYSQL_PORT, DB_NAME: mysql,
         DB_USER: process.env.TEST_MYSQL_USER, DB_PASSWORD: process.env.TEST_MYSQL_PASSWORD } :
         { APP_LOCAL_DB: join(folder, 'agenda.sqlite') }),
       APP_BUSINESS_NAME: 'Empresa de teste', APP_OWNER_NAME: 'Pessoa Gestora',
@@ -46,7 +47,7 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
     await rm(folder, { recursive: true, force: true });
   });
   async function call(path, { method = 'GET', data, cookie, csrf } = {}) {
-    return fetch(origin + path, {
+    return fetch(transport + path, {
       method, redirect: 'manual',
       headers: { Origin: origin, ...(cookie ? { Cookie: cookie } : {}),
         ...(csrf ? { 'X-CSRF-Token': csrf } : {}), ...(data ? { 'Content-Type': 'application/json' } : {}) },
@@ -66,6 +67,7 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   }
   let response = await call('/');
   assert.equal(response.status, 200, logs);
+  if (mysql) assert.equal(response.headers.get('strict-transport-security'), 'max-age=31536000');
   const unpublished = await response.text();
   assert.match(unpublished, /<h1>Empresa de teste<\/h1>/);
   assert.match(unpublished, /href="\/negocio\/agenda\?ref_acesso=[a-f0-9-]{36}">Agendar horário/);
@@ -93,7 +95,8 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   const identity = { cookie: staff.cookie, csrf: staff.data.csrf };
   assert.equal((await call(api + 'installation-license', identity)).status, 404);
   assert.equal(staff.data.user.installationLicenseAvailable, undefined);
-  const { data: { draft, revision } } = await json(api + 'setup', identity, 200);
+  const { data: { draft, revision, professionalPlan } } = await json(api + 'setup', identity, 200);
+  assert.deepEqual(professionalPlan, { plan: 'community', seats: 2 });
   assert.equal((await call(api + 'traffic')).status, 401);
   assert.equal((await call('/sistema/agenda/acessos')).status, 200);
   const coverPng = await sharp({ create: { width: 1200, height: 600, channels: 3, background: '#305097' } }).png().toBuffer();
@@ -109,25 +112,42 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
     email: 'agenda@example.com', address: 'Rua Exemplo, 100'
   });
   draft.teamMode = 'team';
-  for (let n = 2; n < 5; n++) {
-    draft.professionals.push({ ...draft.professionals[0], name: 'Pessoa ' + n,
-      email: 'pessoa' + n + '@example.com', id: randomUUID() });
-  }
+  const second = { ...draft.professionals[0], name: 'Pessoa 2', email: 'pessoa2@example.com', id: randomUUID() };
+  const third = { ...second, name: 'Pessoa 3', email: 'pessoa3@example.com', id: randomUUID() };
+  draft.professionals.push(second);
   draft.services = [
     { id: randomUUID(), name: 'Corte clássico', description: 'Corte agendado', priceCents: 4500,
       durationMinutes: 30, gapMinutes: 0, professionalIds: draft.professionals.map(person => person.id), online: true },
     { id: randomUUID(), name: 'Serviço interno', description: '', priceCents: 0,
       durationMinutes: 10, gapMinutes: 0, professionalIds: [], online: false }
   ];
-  const setup = await json(api + 'setup', { ...identity, method: 'PUT', data: { draft, revision: cover.revision } }, 200);
+  const { data: setup } = await json(api + 'setup', { ...identity, method: 'PUT', data: { draft, revision: cover.revision } }, 200);
+  draft.professionals.push(third);
+  draft.services[0].professionalIds.push(third.id);
+  const saveTeam = (revision, status) => json(api + 'setup', { ...identity, method: 'PUT', data: { draft, revision } }, status);
+  const overLimit = await saveTeam(setup.revision, 422);
+  assert.match(overLimit.data.error, /Community permite até 2 profissionais ativos/);
+  const { data: unchanged } = await json(api + 'setup', identity, 200);
+  assert.equal(unchanged.revision, setup.revision);
+  assert.deepEqual(unchanged.draft.professionals.map(person => person.id), [draft.professionals[0].id, second.id]);
+
+  third.active = false;
+  const { data: inactive } = await saveTeam(setup.revision, 200);
+  third.active = true;
+  await saveTeam(inactive.revision, 422);
+  second.active = false;
+  const { data: replacement } = await saveTeam(inactive.revision, 200);
   assert.doesNotMatch(await (await call('/')).text(), /Corte clássico/);
-  await json(api + 'publish', { ...identity, method: 'POST', data: { revision: setup.data.revision } }, 200);
+  await json(api + 'publish', { ...identity, method: 'POST', data: { revision: replacement.revision } }, 200);
+  const { data: catalog } = await json(api + 'catalog', {}, 200);
+  assert.deepEqual(catalog.professionals.map(person => person.id), [draft.professionals[0].id, third.id]);
   const landing = await (await call('/')).text();
   assert.match(landing, /Agenda do &lt;Bairro&gt;/);
   assert.match(landing, /Seu horário, do seu jeito/);
   assert.match(landing, /--accent:#305097/);
   assert.match(landing, /Corte clássico/);
-  assert.match(landing, /Pessoa 4/);
+  assert.match(landing, /Pessoa 3/);
+  assert.doesNotMatch(landing, /Pessoa 2/);
   assert.match(landing, /class="hero-cover"/);
   const coverAsset = await call(beforePublish.images.cover);
   assert.equal(coverAsset.status, 200);
@@ -135,7 +155,7 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   assert.match(landing, /href="\/negocio\/agenda\?ref_acesso=[a-f0-9-]{36}">Agendar horário/);
   assert.doesNotMatch(landing, /<form\b|<input\b/);
   assert.match(landing, /href="\/codigo-fonte"/);
-  assert.doesNotMatch(landing, /Serviço interno|pessoa4@example.com/);
+  assert.doesNotMatch(landing, /Serviço interno|pessoa3@example.com/);
   assert.equal((await call('/negocio/agenda')).status, 200);
 
   const campaign = { utm_source: 'newsletter', utm_medium: 'email', utm_campaign: 'estreia', utm_content: 'botao', utm_term: 'agenda' };
@@ -163,11 +183,13 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   assert.equal((await call(api + 'setup', { cookie: register.cookie })).status, 401);
   const audience = { cookie: register.cookie, csrf: register.data.csrf };
   const serviceId = draft.services[0].id;
-  const professionalId = draft.professionals[3].id;
+  const professionalId = third.id;
   const day = new Date(Date.now() + 3 * 86400000);
   if (day.getUTCDay() === 0) day.setUTCDate(day.getUTCDate() + 1);
   const date = day.toISOString().slice(0, 10);
   const query = new URLSearchParams({ serviceId, professionalId, date });
+  const inactiveQuery = new URLSearchParams({ serviceId, professionalId: second.id, date });
+  await json(api + 'availability?' + inactiveQuery, audience, 409);
   const { data: availability } = await json(api + 'availability?' + query, audience, 200);
   assert.ok(availability.slots.length);
   const booking = { serviceId, professionalId, startAt: availability.slots[0].startAt,

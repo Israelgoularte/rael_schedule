@@ -4,6 +4,8 @@ Aplicação autohospedada para uma empresa por instalação. Inclui agenda públ
 
 ## Antes de instalar
 
+Para entregar a **Community**, deixe `APP_LICENSE_MODE` e `RAEL_TEST_MODE` ausentes. O limite de **dois profissionais ativos por instalação** funciona localmente. O cadastro profissional inicial do gestor ocupa uma vaga enquanto estiver ativo. Recepção e cadastros inativos ficam fora da contagem. Inative um profissional para liberar a vaga e preservar seu histórico. Se atualizar uma instalação que já excede o limite, reduza o número de ativos e republique o catálogo. Os registros e agendamentos existentes são preservados.
+
 Escolha o domínio definitivo e a origem HTTPS sem barra final. Gere um token de instalação temporário com `node -p "require('node:crypto').randomBytes(32).toString('base64url')"`. Use uma data de expiração ISO 8601, por exemplo 24 horas após o início da instalação.
 
 Configure `APP_ORIGIN`, `APP_SLUG` (padrão `agenda`), `APP_BUSINESS_NAME`, `APP_OWNER_NAME`, `APP_OWNER_EMAIL`, `APP_SETUP_TOKEN` e `APP_SETUP_EXPIRES`. Configure `APP_SOURCE_URL` com a URL HTTPS da tag ou do commit que corresponde à versão instalada para exibir o link do código-fonte.
