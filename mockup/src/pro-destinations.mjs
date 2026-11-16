@@ -49,9 +49,8 @@ export function googleEvent(event, config) {
     }],
     events: [{
       transactionId: event.id, eventTimestamp: event.at, eventSource: 'WEB',
-      userData: { userIdentifiers: [{ emailAddress: demoHash }] }
+      adIdentifiers: { gclid: 'GCLID_1' }
     }],
-    encoding: 'HEX',
     validateOnly: true
   };
 }

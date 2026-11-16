@@ -112,7 +112,10 @@ test('conectores de teste usam sandbox, validação e HMAC e não enviam reserva
   assert.equal(JSON.parse(calls[0].body).data[0].event_name, 'Schedule');
   assert.equal(JSON.parse(calls[0].body).test_event_code, 'TEST123');
   assert.equal(await deliver('google', event), 'validated');
-  assert.equal(JSON.parse(calls[2].body).validateOnly, true);
+  const google = JSON.parse(calls[2].body);
+  assert.equal(google.validateOnly, true);
+  assert.equal(google.events[0].adIdentifiers.gclid, 'GCLID_1');
+  assert.equal(google.events[0].userData, undefined);
   assert.equal(await deliver('webhook', event), 'received');
   const webhook = calls[3];
   assert.equal(webhook.redirect, 'error');
