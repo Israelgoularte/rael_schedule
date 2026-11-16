@@ -17,11 +17,10 @@ export function proConfiguration(env, origin) {
       client_id: env.APP_PRO_GOOGLE_CLIENT_ID, client_secret: env.APP_PRO_GOOGLE_CLIENT_SECRET, refresh_token: env.APP_PRO_GOOGLE_REFRESH_TOKEN
     };
   }
-  if (env.APP_PRO_WEBHOOK_TEST_URL || env.APP_PRO_WEBHOOK_TEST_SECRET) {
-    const url = new URL(env.APP_PRO_WEBHOOK_TEST_URL ?? '');
-    if (url.protocol !== 'https:' || url.username || url.password || url.hash ||
-      !/^[a-f0-9]{64}$/i.test(env.APP_PRO_WEBHOOK_TEST_SECRET ?? '')) throw new Error('Configure uma URL HTTPS e um segredo hexadecimal de 32 bytes para o webhook de teste.');
-    config.webhook = { url: url.href, secret: env.APP_PRO_WEBHOOK_TEST_SECRET };
+  const webhookUrl = URL.parse(env.APP_PRO_WEBHOOK_TEST_URL ?? '');
+  if (webhookUrl?.protocol === 'https:' && !webhookUrl.username && !webhookUrl.password && !webhookUrl.hash &&
+    /^[a-f0-9]{64}$/i.test(env.APP_PRO_WEBHOOK_TEST_SECRET ?? '')) {
+    config.webhook = { url: webhookUrl.href, secret: env.APP_PRO_WEBHOOK_TEST_SECRET };
   }
   return config;
 }

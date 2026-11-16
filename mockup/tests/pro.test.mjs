@@ -84,6 +84,8 @@ test('fila e API usam as permissões assinadas e param quando a licença perde a
 
 test('conectores de teste usam sandbox, validação e HMAC e não enviam reservas reais', async () => {
   assert.equal(proConfiguration({ APP_LICENSE_MODE: 'test', APP_PRO_MODE: 'live' }, 'https://example.invalid'), null);
+  const partial = proConfiguration({ APP_LICENSE_MODE: 'test', APP_PRO_MODE: 'test', APP_PRO_WEBHOOK_TEST_URL: 'https://receiver.example.invalid' }, 'https://example.invalid');
+  assert.equal(partial.webhook, undefined);
   const secret = '11'.repeat(32);
   const config = {
     origin: 'https://example.invalid',
