@@ -10,11 +10,16 @@ export function proConfiguration(env, origin) {
   if (digits(env.APP_PRO_META_TEST_DATASET_ID, 4, 32) && /^TEST[A-Z0-9_-]+$/i.test(env.APP_PRO_META_TEST_EVENT_CODE ?? '') && env.APP_PRO_META_TEST_TOKEN) {
     config.meta = { dataset: env.APP_PRO_META_TEST_DATASET_ID, token: env.APP_PRO_META_TEST_TOKEN, code: env.APP_PRO_META_TEST_EVENT_CODE };
   }
+  let oauth = { client_id: env.APP_PRO_GOOGLE_CLIENT_ID, client_secret: env.APP_PRO_GOOGLE_CLIENT_SECRET, refresh_token: env.APP_PRO_GOOGLE_REFRESH_TOKEN };
+  if (/^[A-Za-z0-9_-]{20,4096}$/.test(env.APP_PRO_GOOGLE_TEST_OAUTH_B64 ?? '')) {
+    try { oauth = JSON.parse(Buffer.from(env.APP_PRO_GOOGLE_TEST_OAUTH_B64, 'base64url').toString('utf8')) ?? {}; }
+    catch { oauth = {}; }
+  }
   if (digits(env.APP_PRO_GOOGLE_TEST_ACCOUNT, 10, 10) && digits(env.APP_PRO_GOOGLE_TEST_ACTION, 1, 22) &&
-    env.APP_PRO_GOOGLE_CLIENT_ID && env.APP_PRO_GOOGLE_CLIENT_SECRET && env.APP_PRO_GOOGLE_REFRESH_TOKEN) {
+    ['client_id', 'client_secret', 'refresh_token'].every(key => typeof oauth[key] === 'string' && oauth[key].trim())) {
     config.google = {
       account: env.APP_PRO_GOOGLE_TEST_ACCOUNT, action: env.APP_PRO_GOOGLE_TEST_ACTION,
-      client_id: env.APP_PRO_GOOGLE_CLIENT_ID, client_secret: env.APP_PRO_GOOGLE_CLIENT_SECRET, refresh_token: env.APP_PRO_GOOGLE_REFRESH_TOKEN
+      client_id: oauth.client_id.trim(), client_secret: oauth.client_secret.trim(), refresh_token: oauth.refresh_token.trim()
     };
   }
   const webhookUrl = URL.parse(env.APP_PRO_WEBHOOK_TEST_URL ?? '');

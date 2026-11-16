@@ -84,6 +84,10 @@ test('fila e API usam as permissões assinadas e param quando a licença perde a
 
 test('conectores de teste usam sandbox, validação e HMAC e não enviam reservas reais', async () => {
   assert.equal(proConfiguration({ APP_LICENSE_MODE: 'test', APP_PRO_MODE: 'live' }, 'https://example.invalid'), null);
+  const bundle = Buffer.from(JSON.stringify({ client_id: 'test-id', client_secret: 'test-secret', refresh_token: 'test-refresh' })).toString('base64url');
+  const prepared = proConfiguration({ APP_LICENSE_MODE: 'test', APP_PRO_MODE: 'test', APP_PRO_GOOGLE_TEST_ACCOUNT: '1234567890',
+    APP_PRO_GOOGLE_TEST_ACTION: '123', APP_PRO_GOOGLE_TEST_OAUTH_B64: bundle }, 'https://example.invalid');
+  assert.equal(prepared.google.refresh_token, 'test-refresh');
   const partial = proConfiguration({ APP_LICENSE_MODE: 'test', APP_PRO_MODE: 'test', APP_PRO_WEBHOOK_TEST_URL: 'https://receiver.example.invalid' }, 'https://example.invalid');
   assert.equal(partial.webhook, undefined);
   const secret = '11'.repeat(32);
