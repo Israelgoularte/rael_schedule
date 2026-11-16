@@ -187,6 +187,8 @@ test('Real: webhook apenas na confirmação e publicidade apenas após optar', a
   const seconds = String(Math.floor(time / 1000));
   const headers = { 'x-rael-mode': 'live', 'x-rael-event-id': webhook[0].event.id, 'x-rael-timestamp': seconds,
     'x-rael-signature': webhookSignature(cfg.webhook.secret, seconds, body) };
+  const [receipt] = (await pro.view()).deliveries.filter(row => row.destination === 'webhook' && row.eventId === webhook[0].event.id);
+  assert.equal(receipt.mode, 'live');
   assert.equal((await pro.acceptWebhook(headers, body)).mode, 'live');
   assert.equal((await pro.acceptWebhook(headers, body)).duplicate, true);
   claims = null;

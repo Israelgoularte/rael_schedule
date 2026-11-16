@@ -58,7 +58,7 @@ export function createPro(db, license, config, { now = Date.now, deliver = confi
       deliveries: rows.filter(row => features.includes(featureFor[row.destination])).map(row => ({
         eventId: row.event_id, destination: row.destination, status: row.status, attempts: Number(row.attempts),
         at: new Date(Number(row.created_at)).toISOString(), detail: row.details,
-        mode: readMetadata(row.payload_json).mode === 'live' ? 'live' : 'test'
+        mode: JSON.parse(row.payload_json).mode === 'live' ? 'live' : 'test'
       })) };
   }
 
