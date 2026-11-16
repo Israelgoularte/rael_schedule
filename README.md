@@ -50,6 +50,8 @@ Para o piloto, configure `APP_PRO_MODE=test` com `APP_LICENSE_MODE=test`. Em **C
 
 Com `APP_PRO_REAL_EVENTS=1`, a instalação standalone e a licença PRO ativa permitem envios de novos agendamentos confirmados. O painel mantém o teste sintético separado. A medição real exige que o cliente permita o envio do identificador do clique na página inicial. O webhook de confirmação é operacional e não contém dados de contato. A conexão de teste de pagamento permanece isolada dos eventos reais. Confirme os destinos antes de ativar a variável. Os identificadores locais expiram em sete dias.
 
+Para o Google Ads, uma [conta de serviço do Google Cloud](https://developers.google.com/data-manager/api/devguides/quickstart/set-up-access) pode autenticar o piloto sem depender da autorização de um usuário. Dê acesso à conta de serviço somente na conta Google Ads que contém a ação configurada. Guarde a chave JSON da conta de serviço em Base64URL como segredo no servidor em `APP_PRO_GOOGLE_SERVICE_ACCOUNT_B64`. Essa configuração tem precedência sobre o OAuth de teste e usa apenas o escopo do Data Manager. Os IDs da conta e da ação continuam os mesmos, e o botão de simulação continua usando `validateOnly: true`.
+
 Sem credenciais de teste, o painel mostra **Simulado localmente**. O modo atual deve continuar restrito à homologação.
 
 ## Operação

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { generateKeyPairSync, verify } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -139,6 +140,43 @@ test('conectores de teste usam sandbox, validação e HMAC e não enviam reserva
   assert.deepEqual(actualGoogle.events[0].adIdentifiers, { gclid: 'ClickFixture' });
   assert.equal(actualGoogle.consent.adPersonalization, 'CONSENT_DENIED');
   assert.equal(await deliver('google', confirmed), 'simulated');
+});
+
+test('a conta de serviço autentica no Google com escopo exclusivo do Data Manager', async () => {
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const credential = { type: 'service_account', client_email: 'agendamentos@fixture.iam.gserviceaccount.com',
+    private_key_id: '12'.repeat(20), private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) };
+  const env = { APP_PRO_MODE: 'test', APP_LICENSE_MODE: 'test', APP_PRO_REAL_EVENTS: '1',
+    APP_PRO_GOOGLE_TEST_ACCOUNT: '1234567890', APP_PRO_GOOGLE_TEST_ACTION: '123',
+    APP_PRO_GOOGLE_CLIENT_ID: 'legacy', APP_PRO_GOOGLE_CLIENT_SECRET: 'legacy', APP_PRO_GOOGLE_REFRESH_TOKEN: 'legacy',
+    APP_PRO_GOOGLE_SERVICE_ACCOUNT_B64: Buffer.from(JSON.stringify(credential)).toString('base64url') };
+  const config = proConfiguration(env, 'https://example.invalid');
+  assert.equal(config.google.refresh_token, undefined);
+  assert.equal(proConfiguration({ ...env, APP_PRO_GOOGLE_SERVICE_ACCOUNT_B64: 'invalid' }, 'https://example.invalid').google, undefined);
+  const deliver = proDestinations(config, async (url, { body, headers }) => {
+    if (url === 'https://oauth2.googleapis.com/token') {
+      const form = new URLSearchParams(body);
+      assert.equal(form.get('grant_type'), 'urn:ietf:params:oauth:grant-type:jwt-bearer');
+      const [header, claims, signature] = form.get('assertion').split('.');
+      const decode = part => JSON.parse(Buffer.from(part, 'base64url').toString('utf8'));
+      assert.deepEqual(decode(header), { alg: 'RS256', typ: 'JWT', kid: credential.private_key_id });
+      const token = decode(claims);
+      assert.equal(token.iss, credential.client_email);
+      assert.equal(token.scope, 'https://www.googleapis.com/auth/datamanager');
+      assert.equal(token.aud, url);
+      assert.equal(token.exp - token.iat, 300);
+      assert.ok(verify('RSA-SHA256', Buffer.from(header + '.' + claims), publicKey, Buffer.from(signature, 'base64url')));
+      return Response.json({ access_token: 'fixture' });
+    }
+    assert.equal(url, 'https://datamanager.googleapis.com/v1/events:ingest');
+    assert.equal(headers.Authorization, 'Bearer fixture');
+    const payload = JSON.parse(body);
+    assert.equal(payload.destinations[0].operatingAccount.accountId, '1234567890');
+    assert.equal(payload.destinations[0].productDestinationId, '123');
+    assert.equal(payload.validateOnly, true);
+    return Response.json({});
+  });
+  assert.equal(await deliver('google', { id: 'fixture', at: new Date().toISOString(), mode: 'test', synthetic: true }), 'validated');
 });
 
 test('Real: webhook apenas na confirmação e publicidade apenas após optar', async t => {

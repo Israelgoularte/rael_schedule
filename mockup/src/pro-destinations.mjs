@@ -1,8 +1,44 @@
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHmac, createPrivateKey, randomBytes, sign } from 'node:crypto';
 import { digest, equal } from './security.mjs';
 
 const digits = (value, min, max) => typeof value === 'string' && new RegExp('^[0-9]{' + min + ',' + max + '}$').test(value);
 const demoHash = digest('rael-homologacao@example.invalid');
+const googleTokenEndpoint = 'https://oauth2.googleapis.com/token';
+
+function googleCredential(env) {
+  const bundle = env.APP_PRO_GOOGLE_SERVICE_ACCOUNT_B64;
+  if (bundle) {
+    if (!/^[A-Za-z0-9_-]{20,8192}$/.test(bundle)) return null;
+    try {
+      const { type, client_email, private_key, private_key_id } = JSON.parse(Buffer.from(bundle, 'base64url').toString('utf8'));
+      if (type !== 'service_account' || !/^[a-z0-9-]+@[a-z0-9.-]+\.gserviceaccount\.com$/i.test(client_email) ||
+        !/^[a-f0-9]{40}$/i.test(private_key_id)) return null;
+      const signingKey = createPrivateKey(private_key);
+      return signingKey.asymmetricKeyType === 'rsa' ? { serviceAccount: { email: client_email, keyId: private_key_id, signingKey } } : null;
+    } catch { return null; }
+  }
+  let oauth = { client_id: env.APP_PRO_GOOGLE_CLIENT_ID, client_secret: env.APP_PRO_GOOGLE_CLIENT_SECRET, refresh_token: env.APP_PRO_GOOGLE_REFRESH_TOKEN };
+  if (/^[A-Za-z0-9_-]{20,4096}$/.test(env.APP_PRO_GOOGLE_TEST_OAUTH_B64 ?? '')) {
+    try { oauth = JSON.parse(Buffer.from(env.APP_PRO_GOOGLE_TEST_OAUTH_B64, 'base64url').toString('utf8')) ?? {}; }
+    catch { oauth = {}; }
+  }
+  const fields = ['client_id', 'client_secret', 'refresh_token'];
+  return fields.every(key => typeof oauth[key] === 'string' && oauth[key].trim())
+    ? Object.fromEntries(fields.map(key => [key, oauth[key].trim()])) : null;
+}
+
+function googleGrant({ serviceAccount, client_id, client_secret, refresh_token }) {
+  if (!serviceAccount) return new URLSearchParams({ client_id, client_secret, refresh_token, grant_type: 'refresh_token' });
+  const { email, keyId, signingKey } = serviceAccount;
+  const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const now = Math.floor(Date.now() / 1000);
+  const header = encode({ alg: 'RS256', typ: 'JWT', kid: keyId });
+  const claims = encode({ iss: email, scope: 'https://www.googleapis.com/auth/datamanager',
+    aud: googleTokenEndpoint, iat: now, exp: now + 300 });
+  const unsigned = header + '.' + claims;
+  const signature = sign('RSA-SHA256', Buffer.from(unsigned), signingKey).toString('base64url');
+  return new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: unsigned + '.' + signature });
+}
 
 export function proConfiguration(env, origin) {
   if (env.APP_PRO_MODE !== 'test' || env.APP_LICENSE_MODE !== 'test') return null;
@@ -10,17 +46,9 @@ export function proConfiguration(env, origin) {
   if (digits(env.APP_PRO_META_TEST_DATASET_ID, 4, 32) && /^TEST[A-Z0-9_-]+$/i.test(env.APP_PRO_META_TEST_EVENT_CODE ?? '') && env.APP_PRO_META_TEST_TOKEN) {
     config.meta = { dataset: env.APP_PRO_META_TEST_DATASET_ID, token: env.APP_PRO_META_TEST_TOKEN, code: env.APP_PRO_META_TEST_EVENT_CODE };
   }
-  let oauth = { client_id: env.APP_PRO_GOOGLE_CLIENT_ID, client_secret: env.APP_PRO_GOOGLE_CLIENT_SECRET, refresh_token: env.APP_PRO_GOOGLE_REFRESH_TOKEN };
-  if (/^[A-Za-z0-9_-]{20,4096}$/.test(env.APP_PRO_GOOGLE_TEST_OAUTH_B64 ?? '')) {
-    try { oauth = JSON.parse(Buffer.from(env.APP_PRO_GOOGLE_TEST_OAUTH_B64, 'base64url').toString('utf8')) ?? {}; }
-    catch { oauth = {}; }
-  }
-  if (digits(env.APP_PRO_GOOGLE_TEST_ACCOUNT, 10, 10) && digits(env.APP_PRO_GOOGLE_TEST_ACTION, 1, 22) &&
-    ['client_id', 'client_secret', 'refresh_token'].every(key => typeof oauth[key] === 'string' && oauth[key].trim())) {
-    config.google = {
-      account: env.APP_PRO_GOOGLE_TEST_ACCOUNT, action: env.APP_PRO_GOOGLE_TEST_ACTION,
-      client_id: oauth.client_id.trim(), client_secret: oauth.client_secret.trim(), refresh_token: oauth.refresh_token.trim()
-    };
+  if (digits(env.APP_PRO_GOOGLE_TEST_ACCOUNT, 10, 10) && digits(env.APP_PRO_GOOGLE_TEST_ACTION, 1, 22)) {
+    const credential = googleCredential(env);
+    if (credential) config.google = { account: env.APP_PRO_GOOGLE_TEST_ACCOUNT, action: env.APP_PRO_GOOGLE_TEST_ACTION, ...credential };
   }
   const webhookUrl = URL.parse(env.APP_PRO_WEBHOOK_TEST_URL ?? '');
   if (webhookUrl?.protocol === 'https:' && !webhookUrl.username && !webhookUrl.password && !webhookUrl.hash &&
@@ -89,9 +117,8 @@ export function proDestinations(config, send = fetch) {
     if (destination === 'google') {
       if (!config.google || !(test || (real && event.clicks?.google))) return 'simulated';
       const payload = googleEvent(event, config);
-      const { client_id, client_secret, refresh_token } = config.google;
-      const auth = await post('https://oauth2.googleapis.com/token', { 'Content-Type': 'application/x-www-form-urlencoded' },
-        new URLSearchParams({ client_id, client_secret, refresh_token, grant_type: 'refresh_token' }).toString(), 'OAuth');
+      const auth = await post(googleTokenEndpoint, { 'Content-Type': 'application/x-www-form-urlencoded' },
+        googleGrant(config.google).toString(), 'OAuth');
       const { access_token } = await auth.json();
       if (typeof access_token !== 'string' || !access_token) throw Object.assign(new Error('oauth_failed'), { upstreamStatus: 401, upstreamStage: 'OAuth' });
       const reply = await post('https://datamanager.googleapis.com/v1/events:ingest',
