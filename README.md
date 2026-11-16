@@ -29,6 +29,15 @@ No Docker Manager da Hostinger, o arquivo para importação por URL é [docker-c
 
 Esse fluxo requer um plano com Apps Web Node e conectividade ao MySQL. Consulte o [guia de deploy Node da Hostinger](https://www.hostinger.com/support/how-to-deploy-a-nodejs-website-in-hostinger/). O App Web Node recebe somente o código Node e a configuração. O Docker Compose é usado para a VPS.
 
+## Licenciamento em homologação
+
+No piloto, `APP_LICENSE_MODE=test` disponibiliza **Configurações → Licença do sistema** ao administrador. O modo fica desativado por padrão. A instalação usa um identificador próprio e guarda a credencial no banco do negócio. O painel aceita apenas licenças assinadas pela chave pública de homologação e links do sandbox do Mercado Pago.
+
+- A Community permite dois profissionais ativos. O painel consulta preço e capacidade dos planos pagos na central.
+- Na primeira compra, confirme o e-mail e abra o checkout pelo painel. A licença aparece após a confirmação do pagamento, mesmo se o checkout for fechado sem voltar à loja.
+- A renovação é anual e manual. Prepare o pedido no painel e pague pelo checkout de teste.
+- Após reinstalar, solicite a recuperação com o e-mail da compra e confirme a transferência pelo link recebido. A validade é preservada. O backup lógico não inclui a identidade da instalação.
+
 ## Operação
 
 Em **Negócio**, adicione uma foto horizontal de capa para a página inicial. A capa pode ser trocada ou removida sem alterar o logo. Em **Acessos**, o gestor pode consultar o gráfico diário e filtrar por período, origem, meio e campanha. Use os atalhos de 7, 30 ou 90 dias ou datas personalizadas. A taxa por campanha divide os acessos rastreados que geraram ao menos um agendamento em até duas horas pelo total de acessos rastreados no período. A mesma abertura conta uma vez, mesmo com várias reservas, e a conversão pertence à data do acesso. Os totais de acessos e agendamentos também incluem o histórico sem vínculo. Para marcar uma campanha, compartilhe `https://SEU_DOMINIO/?utm_source=instagram&utm_medium=social&utm_campaign=lancamento`.

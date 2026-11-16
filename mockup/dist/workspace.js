@@ -35,6 +35,7 @@
       { key: 'painel', label: 'Visão geral', group: 'Dia a dia', href: `${base}/painel` }, local('agenda', 'Agenda', 'open-agenda', 'agenda', 'Dia a dia'),
       { key: 'clientes', label: 'Clientes', group: 'Dia a dia', href: `${base}/clientes` }, { key: 'financeiro', label: 'Financeiro', group: 'Dia a dia', href: `${base}/financeiro` },
       ...(user.role === 'admin' ? [{ key: 'acessos', label: 'Acessos', group: 'Dia a dia', href: `${base}/acessos` }] : []),
+      ...(user.installationLicenseAvailable ? [{ key: 'license', label: 'Licença do sistema', group: 'Configurações', href: `${base}/licenca` }] : []),
       ...(['admin', 'professional'].includes(user.role) ? [{ key: 'memberships', label: 'Planos e Assinaturas', group: 'Serviços e planos', href: `${base}/assinaturas` }] : []),
       local('profile', user.role === 'admin' ? 'Negócio' : user.role === 'professional' ? 'Meu perfil' : 'Meu acesso', 'open-profile', 'perfil', 'Configurações'),
       ...(user.role === 'admin' ? [local('team', 'Equipe', 'team', 'equipe', 'Configurações'), { key: 'receiving', label: 'Mercado Pago', group: 'Configurações', href: `${base}/recebimentos` }] : []),

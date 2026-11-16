@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 const schema = [
+  `CREATE TABLE IF NOT EXISTS installation_license (id INTEGER PRIMARY KEY, installation_id VARCHAR(36) NOT NULL, credential VARCHAR(43) NOT NULL, registered INTEGER NOT NULL, token LONGTEXT NULL, remote_state VARCHAR(16) NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at BIGINT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS notifications (id VARCHAR(64) PRIMARY KEY, recipient_type VARCHAR(16) NOT NULL, recipient_id VARCHAR(36) NOT NULL, title VARCHAR(120) NOT NULL, body VARCHAR(500) NOT NULL, url VARCHAR(500) NOT NULL, event_key VARCHAR(64) NOT NULL, created_at BIGINT NOT NULL, read_at BIGINT NULL)`,
   `CREATE TABLE IF NOT EXISTS notification_devices (id VARCHAR(64) PRIMARY KEY, recipient_type VARCHAR(16) NOT NULL, recipient_id VARCHAR(36) NOT NULL, session_hash VARCHAR(64) NOT NULL, endpoint_hash VARCHAR(64) NOT NULL UNIQUE, endpoint LONGTEXT NOT NULL, keys_json TEXT NOT NULL, expiration_at BIGINT NULL, active INTEGER NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)`,

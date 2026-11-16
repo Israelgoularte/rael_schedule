@@ -443,6 +443,17 @@ export async function createFoundation(config) {
         const rawToken = cookies(req)[service.cookieName];
         const user = await service.session(rawToken);
         if (req.method !== 'GET') service.verifyCsrf(user, req.headers['x-csrf-token']);
+        if (path === 'installation-license' || path.startsWith('installation-license/')) {
+          if (!service.installationLicense) throw failure(404, 'Página não encontrada.');
+          if (user.role !== 'admin') throw failure(403, 'Somente o administrador pode gerenciar a licença.');
+          if (path === 'installation-license' && req.method === 'GET') {
+            json(res, 200, await service.installationLicense.view()); return true;
+          }
+          if (path.startsWith('installation-license/') && req.method === 'POST') {
+            json(res, 200, await service.installationLicense.action(path.slice('installation-license/'.length), await body(req, 4096))); return true;
+          }
+          throw failure(405, 'Ação não permitida.');
+        }
         if (path === 'notifications' || path.startsWith('notifications/')) {
           if (req.method === 'GET' && req.headers['x-csrf-token'] !== undefined) service.verifyCsrf(user, req.headers['x-csrf-token']);
           const action = path.slice('notifications'.length), actor = { staff: user };
@@ -562,8 +573,8 @@ export async function createFoundation(config) {
       maintenanceReports.set(slug, report);
       try {
         const service = await get(slug);
-        for (const [component, module] of [['payments', service.payments], ['subscriptions', service.subscriptions], ['license', service.license], ['notifications', service.notifications], ['recovery_email', service.emailRecovery]]) {
-          try { await module.sweep(component === 'notifications' ? { deliver: false } : undefined); } catch (error) { maintenanceFailure(slug, component, error); }
+        for (const [component, module] of [['payments', service.payments], ['subscriptions', service.subscriptions], ['license', service.license], ['installation_license', service.installationLicense], ['notifications', service.notifications], ['recovery_email', service.emailRecovery]]) {
+          try { await module?.sweep(component === 'notifications' ? { deliver: false } : undefined); } catch (error) { maintenanceFailure(slug, component, error); }
         }
       } catch (error) { maintenanceFailure(slug, 'database', error); }
       finally { if (services.has(slug)) wakeNotifications(slug); }

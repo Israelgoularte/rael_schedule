@@ -49,6 +49,9 @@ const publicFiles = new Map([
   ['/traffic-view.js', 'text/javascript; charset=utf-8'],
   ['/gestao-csv.js', 'text/javascript; charset=utf-8'],
   ['/metadata.js', 'text/javascript; charset=utf-8'],
+  ['/licenca.html', 'text/html; charset=utf-8'],
+  ['/licenca.css', 'text/css; charset=utf-8'],
+  ['/licenca.js', 'text/javascript; charset=utf-8'],
   ['/mp-config.html', 'text/html; charset=utf-8'],
   ['/mp-config.js', 'text/javascript; charset=utf-8'],
   ['/mp-config.css', 'text/css; charset=utf-8'],
@@ -141,7 +144,7 @@ const server = createServer(async (req, res) => {
     res.writeHead(302, { Location: config.sourceUrl, 'Cache-Control': 'no-store' }).end();
     return;
   }
-  const systemPage = /^\/sistema\/([a-z0-9-]+)(?:\/(assinaturas|clientes|financeiro|painel|acessos|recebimentos))?\/?$/.exec(pathname);
+  const systemPage = /^\/sistema\/([a-z0-9-]+)(?:\/(assinaturas|clientes|financeiro|painel|acessos|recebimentos|licenca))?\/?$/.exec(pathname);
   let accessMode;
   if (systemPage?.[1] === standaloneSlug) {
     const area = systemPage[2];
@@ -150,15 +153,19 @@ const server = createServer(async (req, res) => {
       accessMode = access === 'cadastro' ? 'register' : 'login';
       pathname = '/acesso-cliente.html';
     } else {
-      pathname = area === 'recebimentos' ? '/mp-config.html' : area === 'assinaturas' ? '/assinaturas.html' : area ? '/gestao.html' : '/sistema.html';
+      pathname = area === 'licenca' ? '/licenca.html' : area === 'recebimentos' ? '/mp-config.html' : area === 'assinaturas' ? '/assinaturas.html' : area ? '/gestao.html' : '/sistema.html';
     }
   } else if (publicShareRoute?.[2] === standaloneSlug) {
     pathname = publicShareRoute[1] === 'planos' ? '/assinaturas.html' : '/agendar.html';
   }
   if (pathname === '/') pathname = '/index.html';
   const contentType = publicFiles.get(pathname);
-  if (!contentType) {
+  if (!contentType || (!config.installationLicensing && /^\/licenca\.(html|css|js)$/.test(pathname))) {
     res.writeHead(404).end();
+    return;
+  }
+  if (pathname === '/licenca.html' && systemPage?.[2] !== 'licenca') {
+    res.writeHead(302, { Location: '/sistema/' + standaloneSlug + '/licenca', 'Cache-Control': 'no-store' }).end();
     return;
   }
   // Apply the same protections to friendly routes and direct HTML aliases.

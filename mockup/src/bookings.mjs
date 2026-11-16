@@ -78,7 +78,7 @@ const contact = input => {
   return { name, email, phone };
 };
 
-export function createBookings(db, slug, config, dummyHash, payments, subscriptions, license) {
+export function createBookings(db, slug, config, dummyHash, payments, subscriptions, license, installationLicense) {
   const now = config.now ?? (() => Date.now());
   const customerCookie = `${config.origin.startsWith('https://') ? '__Host-' : ''}rael_customer_${slug}`;
   const customerView = row => ({ id: row.id, name: row.name, email: row.email, phone: row.phone });
@@ -171,6 +171,9 @@ export function createBookings(db, slug, config, dummyHash, payments, subscripti
     const date = plainDate(args.date), original = args.appointmentId ? await owned(tx, args.appointmentId, actor) : null;
     if (original) canEdit(actor, original);
     else await license.assertBooking(tx);
+    if (installationLicense && original?.professional_id !== args.professionalId && !(await installationLicense.bookable(tx, settings)).has(args.professionalId)) {
+      throw failure(409, 'Este profissional está temporariamente indisponível para novos agendamentos.');
+    }
     if (args.subscriptionId !== undefined && (!uuid(args.subscriptionId) || !actor.customer || original)) throw failure(422, 'Escolha uma assinatura da sua própria conta.');
     if (actor.staff?.role === 'professional' && args.professionalId !== actor.staff.professional_id) throw failure(403, 'Escolha seu próprio expediente.');
     const coverage = args.subscriptionId ? await subscriptions.coverage(tx, args.subscriptionId, actor.customer.id, args.serviceId, args.professionalId) : null;
@@ -369,8 +372,8 @@ export function createBookings(db, slug, config, dummyHash, payments, subscripti
     async catalogInfo(settings, catalog) {
       const licenseState = await license.state();
       const today = dateAt(now(), catalog.business.timeZone), prefs = await db.query('SELECT professional_id, require_payment FROM receiving_preferences');
-      const professionals = [];
-      for (const p of catalog.professionals.filter(p => settings.draft.professionals.some(d => d.id === p.id && d.active))) {
+      const professionals = [], licensed = await installationLicense?.bookable(db, settings);
+      for (const p of catalog.professionals.filter(p => licensed ? licensed.has(p.id) : settings.draft.professionals.some(d => d.id === p.id && d.active))) {
         const requiresPayment = Boolean(prefs.find(r => r.professional_id === p.id)?.require_payment), connection = requiresPayment ? await payments.connectionFor(db, p.id) : null;
         professionals.push({ ...p, requiresPayment, receiver: connection?.ready ? { name: connection.name, id: connection.collectorId } : null, bookingAllowed: licenseState.canBook && (!requiresPayment || connection.ready), subscriptionBookingAllowed: licenseState.canBook, unavailableReason: !licenseState.canBook ? 'Novos agendamentos estão temporariamente indisponíveis. Entre em contato com o negócio.' : requiresPayment && !connection.ready ? 'Agendamento online indisponível para este profissional no momento.' : '' });
       }

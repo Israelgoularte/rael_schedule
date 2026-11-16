@@ -1,0 +1,16 @@
+[hidden] { display: none !important; }
+.license-wrap { max-width: 1080px; margin: 38px auto 64px; padding: 0 clamp(16px, 4vw, 28px); }
+.license-wrap h1 { margin-bottom: 16px; }
+.license-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 18px; align-items: start; }
+.license-grid h2 { margin-bottom: 12px; }
+.license-grid .field { margin: 14px 0; }
+.license-grid input, .license-grid select { font-size: 16px; }
+.license-grid form > .button { margin-top: 12px; }
+.license-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.license-actions .button { white-space: normal; }
+.license-status { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.license-orders { list-style: none; padding: 0; margin: 0; }
+.license-orders li + li { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+#license-feedback { grid-column: 1 / -1; margin: 0; }
+#license-feedback:empty { display: none; }
+@media (max-width: 740px) { .license-grid { grid-template-columns: minmax(0, 1fr); } .license-wrap { margin-top: 26px; } }

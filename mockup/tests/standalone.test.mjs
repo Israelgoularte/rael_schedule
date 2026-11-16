@@ -81,7 +81,7 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   assert.match(signup, /<fieldset\s*>/);
   assert.match(signup, /autocomplete="new-password"/);
   assert.doesNotMatch(await (await call('/sistema/agenda')).text(), /data-mode="(?:login|register)"/);
-  for (const path of ['/precos', '/comecar', '/operacao', '/plataforma.html', '/internal/agenda/license', '/internal/agenda/account/closure']) {
+  for (const path of ['/precos', '/comecar', '/operacao', '/plataforma.html', '/sistema/agenda/licenca', '/internal/agenda/license', '/internal/agenda/account/closure']) {
     assert.equal((await call(path)).status, 404, path);
   }
   const api = '/internal/agenda/';
@@ -91,6 +91,8 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   await json(api + 'activate', activate, 422);
   const staff = await json(api + 'login', { method: 'POST', data: { email: 'equipe@example.com', password } }, 200);
   const identity = { cookie: staff.cookie, csrf: staff.data.csrf };
+  assert.equal((await call(api + 'installation-license', identity)).status, 404);
+  assert.equal(staff.data.user.installationLicenseAvailable, undefined);
   const { data: { draft, revision } } = await json(api + 'setup', identity, 200);
   assert.equal((await call(api + 'traffic')).status, 401);
   assert.equal((await call('/sistema/agenda/acessos')).status, 200);
