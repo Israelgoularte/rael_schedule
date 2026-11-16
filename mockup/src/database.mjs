@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 const schema = [
+  `CREATE TABLE IF NOT EXISTS pro_attribution (visit_key VARCHAR(64) PRIMARY KEY, clicks_json LONGTEXT NOT NULL, agent VARCHAR(512) NOT NULL, opted_at BIGINT NOT NULL, expires_at BIGINT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS pro_webhook_receipt (event_id VARCHAR(64) PRIMARY KEY, received_at BIGINT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS pro_api_key (id INTEGER PRIMARY KEY, key_hash VARCHAR(64) NOT NULL, license_version VARCHAR(80) NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS pro_delivery (event_id VARCHAR(64) NOT NULL, destination VARCHAR(12) NOT NULL, license_version VARCHAR(80) NOT NULL, payload_json LONGTEXT NOT NULL, status VARCHAR(16) NOT NULL, details VARCHAR(32) NOT NULL, attempts INTEGER NOT NULL, next_at BIGINT NOT NULL, lease_until BIGINT NOT NULL, lease_id VARCHAR(36) NULL, created_at BIGINT NOT NULL, PRIMARY KEY (event_id, destination))`,

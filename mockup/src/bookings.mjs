@@ -215,6 +215,7 @@ export function createBookings(db, slug, config, dummyHash, payments, subscripti
     const customerData = !reschedule && actor.staff ? contact(input.customer ?? {}) : null;
     if (!actor.customer && !actor.staff) throw failure(401, 'Entre na sua conta para confirmar.');
     await rateLimit(db, `reserve:${actor.customer?.id ?? actor.staff.id}`, 60, 60 * minuteMs);
+    if (!reschedule) await pro?.prepare();
     return db.transaction(async tx => {
       // One row serializes all interval-changing operations, including across Node replicas.
       const settings = await readSettings(tx, true); await payments.expire(tx);

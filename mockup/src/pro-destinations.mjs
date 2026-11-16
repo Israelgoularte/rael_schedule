@@ -6,7 +6,7 @@ const demoHash = digest('rael-homologacao@example.invalid');
 
 export function proConfiguration(env, origin) {
   if (env.APP_PRO_MODE !== 'test' || env.APP_LICENSE_MODE !== 'test') return null;
-  const config = { origin };
+  const config = { origin, real: env.APP_PRO_REAL_EVENTS === '1', slug: env.APP_SLUG || 'agenda' };
   if (digits(env.APP_PRO_META_TEST_DATASET_ID, 4, 32) && /^TEST[A-Z0-9_-]+$/i.test(env.APP_PRO_META_TEST_EVENT_CODE ?? '') && env.APP_PRO_META_TEST_TOKEN) {
     config.meta = { dataset: env.APP_PRO_META_TEST_DATASET_ID, token: env.APP_PRO_META_TEST_TOKEN, code: env.APP_PRO_META_TEST_EVENT_CODE };
   }
@@ -31,13 +31,14 @@ export function proConfiguration(env, origin) {
 }
 
 export function metaEvent(event, config) {
+  const real = event.mode === 'live';
   return {
     data: [{
       event_name: 'Schedule', event_id: event.id, event_time: Math.floor(Date.parse(event.at) / 1000),
-      action_source: 'website', event_source_url: config.origin + '/',
-      user_data: { em: [demoHash] }
+      action_source: 'website', event_source_url: config.origin + (real ? '/negocio/' + encodeURIComponent(config.slug) : '/'),
+      user_data: real ? { fbc: event.clicks.fbc, client_user_agent: event.clicks.agent } : { em: [demoHash] }
     }],
-    test_event_code: config.meta?.code ?? 'TEST_LOCAL'
+    ...(real ? {} : { test_event_code: config.meta?.code ?? 'TEST_LOCAL' })
   };
 }
 
@@ -49,9 +50,10 @@ export function googleEvent(event, config) {
     }],
     events: [{
       transactionId: event.id, eventTimestamp: event.at, eventSource: 'WEB',
-      adIdentifiers: { gclid: 'GCLID_1' }
+      adIdentifiers: event.mode === 'live' ? event.clicks.google : { gclid: 'GCLID_1' }
     }],
-    validateOnly: true
+    ...(event.mode === 'live' ? { consent: { adUserData: 'CONSENT_GRANTED', adPersonalization: 'CONSENT_DENIED' } } : {}),
+    validateOnly: event.mode !== 'live'
   };
 }
 
@@ -74,17 +76,19 @@ export function proDestinations(config, send = fetch) {
   }
 
   return async (destination, event) => {
+    const real = config.real && event.mode === 'live' && event.synthetic === false && event.type === 'appointment.confirmed';
+    const test = event.mode === 'test' && event.synthetic === true;
     if (destination === 'meta') {
+      if (!config.meta || !(test || (real && event.clicks?.fbc && event.clicks?.agent))) return 'simulated';
       const payload = metaEvent(event, config);
-      if (!config.meta || !event.synthetic) return 'simulated';
       const response = await post('https://graph.facebook.com/v24.0/' + config.meta.dataset + '/events',
         { 'Content-Type': 'application/json', Authorization: 'Bearer ' + config.meta.token }, JSON.stringify(payload));
       if (!(Number((await response.json()).events_received) > 0)) throw Object.assign(new Error('event_not_accepted'), { upstreamStatus: 422 });
       return 'received';
     }
     if (destination === 'google') {
+      if (!config.google || !(test || (real && event.clicks?.google))) return 'simulated';
       const payload = googleEvent(event, config);
-      if (!config.google || !event.synthetic) return 'simulated';
       const { client_id, client_secret, refresh_token } = config.google;
       const auth = await post('https://oauth2.googleapis.com/token', { 'Content-Type': 'application/x-www-form-urlencoded' },
         new URLSearchParams({ client_id, client_secret, refresh_token, grant_type: 'refresh_token' }).toString(), 'OAuth');
@@ -93,21 +97,21 @@ export function proDestinations(config, send = fetch) {
       const reply = await post('https://datamanager.googleapis.com/v1/events:ingest',
         { 'Content-Type': 'application/json', Authorization: 'Bearer ' + access_token }, JSON.stringify(payload), 'Data Manager');
       await reply.body?.cancel();
-      return 'validated';
+      return real ? 'accepted' : 'validated';
     }
 
     const body = JSON.stringify(event);
     const seconds = String(Math.floor(Date.now() / 1000));
     const secret = config.webhook?.secret ?? localSigningKey;
     const signature = webhookSignature(secret, seconds, body);
-    if (!config.webhook || !event.synthetic) {
+    if (!config.webhook || !(test || real)) {
       const expected = 'sha256=' + createHmac('sha256', Buffer.from(secret, 'hex')).update(seconds + '.').update(body).digest('hex');
       if (!equal(signature, expected)) throw new Error('signature_failed');
       return 'simulated';
     }
     const reply = await post(config.webhook.url, {
       'Content-Type': 'application/json', 'X-Rael-Event-Id': event.id,
-      'X-Rael-Timestamp': seconds, 'X-Rael-Signature': signature, 'X-Rael-Mode': 'test'
+      'X-Rael-Timestamp': seconds, 'X-Rael-Signature': signature, 'X-Rael-Mode': event.mode
     }, body);
     await reply.body?.cancel();
     return 'received';

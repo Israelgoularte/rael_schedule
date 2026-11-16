@@ -11,6 +11,7 @@ const publicFiles = new Map([
   ['/index.html', 'text/html; charset=utf-8'],
   ['/vitrine.css', 'text/css; charset=utf-8'],
   ['/acesso-cliente.html', 'text/html; charset=utf-8'],
+  ['/advertising-consent.js', 'text/javascript; charset=utf-8'],
   ['/entrada.js', 'text/javascript; charset=utf-8'],
   ['/entrada.css', 'text/css; charset=utf-8'],
   ['/styles.css', 'text/css; charset=utf-8'],
@@ -192,6 +193,9 @@ const server = createServer(async (req, res) => {
       else if (req.method === 'GET' && !speculative && !crawler && [undefined, 'document'].includes(req.headers['sec-fetch-dest'])) {
         view.visitRef = await foundation.recordLandingView(standaloneSlug, view.utms, requestUrl.searchParams)
           .catch(error => observability.failure('landing_traffic_failed', error));
+      }
+      if (view.visitRef && !accessMode && config.pro?.real) {
+        view.advertisingConsent = await foundation.advertisingConsent(standaloneSlug).catch(() => false);
       }
       bytes = Buffer.from(accessMode
         ? renderCustomerAccess(bytes.toString('utf8'), { ...view, mode: accessMode })

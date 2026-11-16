@@ -12,8 +12,8 @@ const stats = () => ({ visits: 0, bookings: 0 });
 const cohort = () => ({ ...stats(), trackedVisits: 0, convertedVisits: 0 });
 const withRate = row => ({ ...row, rate: row.trackedVisits ? row.convertedVisits / row.trackedVisits : null });
 export const visitParam = 'ref_acesso';
-const attributionWindow = 2 * hour;
-const referenceKey = value => createHash('sha256').update(value).digest('hex');
+export const attributionWindow = 2 * hour;
+export const referenceKey = value => createHash('sha256').update(value).digest('hex');
 export const validVisitRef = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value);
 
 export function basicUtms(input = {}) {

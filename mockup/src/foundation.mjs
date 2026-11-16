@@ -237,9 +237,24 @@ export async function createFoundation(config) {
       const { db, service } = await ensure(slug);
       return countLandingView(db, utms, (config.now ?? Date.now)(), query ? await service.pro?.attribution(query) : undefined);
     },
+    async advertisingConsent(slug) { return Boolean(await (await get(slug)).pro?.canConsent()); },
     async publicSharePreview(slug) { return (await publicShareSource(slug))?.identity ?? null; },
     publicShareImage,
     async handle(req, res, url) {
+      if (url.pathname === '/api/v1/advertising-consent') {
+        if (!config.standalone || !config.pro?.real) return false;
+        res.setHeader('Cache-Control', 'no-store');
+        try {
+          if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); throw failure(405, 'Ação não permitida.'); }
+          if (req.headers.origin !== config.origin) throw failure(403, 'Use o endereço oficial.');
+          const service = await get(Object.keys(config.entries)[0]);
+          const data = await body(req, 4096);
+          json(res, 200, await service.pro.consent(data.ref, data.decision, data.clicks, req.headers['user-agent']));
+        } catch (error) {
+          json(res, error.status ?? 500, { error: error.status ? error.message : 'Não foi possível salvar a preferência.' });
+        }
+        return true;
+      }
       if (url.pathname === '/api/v1/test-webhook/receipt') {
         if (!config.standalone || !config.pro?.webhook) return false;
         res.setHeader('Cache-Control', 'no-store');
@@ -463,7 +478,7 @@ export async function createFoundation(config) {
           if (path === 'customer/payment' && req.method === 'GET') { json(res, 200, await service.payments.paymentStatus({ customer }, url.searchParams.get('appointmentId'))); return true; }
           if (path === 'customer/payment-refresh' && req.method === 'POST') { json(res, 200, await service.payments.paymentStatus({ customer }, (await body(req)).appointmentId, true)); return true; }
           if (path === 'customer/checkout' && req.method === 'POST') { json(res, 200, await service.payments.beginCheckout({ customer }, (await body(req)).appointmentId)); return true; }
-          if (['customer/reserve', 'customer/reschedule'].includes(path) && req.method === 'POST') { const result = await service.booking.reserve({ customer }, await body(req, 32768), path.endsWith('reschedule')); json(res, result.created ? 201 : 200, result); return true; }
+          if (['customer/reserve', 'customer/reschedule'].includes(path) && req.method === 'POST') { const result = await service.booking.reserve({ customer }, await body(req, 32768), path.endsWith('reschedule')); if (config.pro?.real && result.created && result.appointment.status === 'confirmed') service.pro?.sweep().catch(error => maintenanceFailure(slug, 'pro', error)); json(res, result.created ? 201 : 200, result); return true; }
           if (path === 'customer/status' && req.method === 'POST') { json(res, 200, await service.booking.changeStatus({ customer }, await body(req))); return true; }
           throw failure(405, 'Ação não permitida.');
         }
@@ -556,7 +571,7 @@ export async function createFoundation(config) {
         if (path === 'agenda/checkout' && req.method === 'POST') { json(res, 200, await service.payments.beginCheckout({ staff: user }, (await body(req)).appointmentId)); return true; }
         if (path === 'agenda' && req.method === 'GET') { json(res, 200, await service.booking.agenda(user, Object.fromEntries(url.searchParams))); return true; }
         if (path === 'agenda/availability' && req.method === 'GET') { json(res, 200, await service.booking.availability(Object.fromEntries(url.searchParams), { staff: user })); return true; }
-        if (['agenda/reserve', 'agenda/reschedule'].includes(path) && req.method === 'POST') { const result = await service.booking.reserve({ staff: user }, await body(req, 32768), path.endsWith('reschedule')); json(res, result.created ? 201 : 200, result); return true; }
+        if (['agenda/reserve', 'agenda/reschedule'].includes(path) && req.method === 'POST') { const result = await service.booking.reserve({ staff: user }, await body(req, 32768), path.endsWith('reschedule')); if (config.pro?.real && result.created && result.appointment.status === 'confirmed') service.pro?.sweep().catch(error => maintenanceFailure(slug, 'pro', error)); json(res, result.created ? 201 : 200, result); return true; }
         if (path === 'agenda/status' && req.method === 'POST') { json(res, 200, await service.booking.changeStatus({ staff: user }, await body(req))); return true; }
         if (path === 'agenda/block-preview' && req.method === 'GET') { json(res, 200, await service.booking.blockPreview(user, Object.fromEntries(url.searchParams))); return true; }
         if (path === 'agenda/block' && req.method === 'POST') { json(res, 201, await service.booking.addBlock(user, await body(req))); return true; }

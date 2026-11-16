@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readSettings } from './database.mjs';
+import { attributionWindow, referenceKey, validVisitRef } from './traffic.mjs';
 import { readMetadata } from './metadata.mjs';
 import { digest, equal, failure, rateLimit } from './security.mjs';
 import { proDestinations, webhookSignature } from './pro-destinations.mjs';
@@ -9,6 +10,9 @@ const allFeatures = [...new Set(['api', ...Object.values(featureFor)])];
 const statuses = new Set(['awaiting_payment', 'confirmed', 'cancelled', 'in_progress', 'completed', 'no_show', 'expired']);
 const leaseTime = 30_000;
 const emptyAccess = { features: [], version: '' };
+const clickFields = ['fbclid', 'gclid', 'gbraid', 'wbraid'];
+const maxAdAge = 7 * 86_400_000;
+const validClick = value => typeof value === 'string' && /^[A-Za-z0-9_.-]{8,256}$/.test(value) && !/^(?:GCLID_1|test|synthetic|fake|demo)/i.test(value);
 
 export function adChannels(query) {
   const present = key => /^[A-Za-z0-9_.-]{1,256}$/.test(query.get(key) ?? '');
@@ -49,7 +53,7 @@ export function createPro(db, license, config, { now = Date.now, deliver = confi
     const [key] = features.includes('api') ? await db.query('SELECT id FROM pro_api_key WHERE id = 1 AND license_version = ?', [version]) : [];
     const rows = await db.query(`SELECT event_id, destination, status, attempts, created_at, details FROM pro_delivery
       WHERE license_version = ? ORDER BY created_at DESC, destination LIMIT 30`, [version]);
-    return { mode: 'test', features, keyActive: Boolean(key),
+    return { mode: config.real ? 'live' : 'test', features, keyActive: Boolean(key),
       destinations: { meta: Boolean(config.meta), google: Boolean(config.google), webhook: Boolean(config.webhook) },
       deliveries: rows.filter(row => features.includes(featureFor[row.destination])).map(row => ({
         eventId: row.event_id, destination: row.destination, status: row.status, attempts: Number(row.attempts),
@@ -105,10 +109,44 @@ export function createPro(db, license, config, { now = Date.now, deliver = confi
     }
   }
 
+  async function consent(ref, decision, supplied, userAgent) {
+    if (!config.real || !validVisitRef(ref) || !['allow', 'deny'].includes(decision)) throw failure(404, 'Preferência de medição indisponível.');
+    const key = referenceKey(ref), time = now();
+    await db.transaction(async tx => {
+      await readSettings(tx, true);
+      if (decision === 'deny') {
+        await tx.query('DELETE FROM pro_attribution WHERE visit_key = ?', [key]);
+        return;
+      }
+      await assertFeature('advanced_tracking', tx);
+      const [visit] = await tx.query('SELECT created_at FROM landing_visits WHERE visit_key = ? AND created_at >= ? AND created_at <= ?', [key, time - attributionWindow, time]);
+      if (!visit) throw failure(409, 'Este acesso expirou. Abra o link novamente.');
+      const clicks = Object.fromEntries(clickFields.filter(field => validClick(supplied?.[field])).map(field => [field, supplied[field]]));
+      if (!Object.keys(clicks).length) throw failure(422, 'Nenhum clique de anúncio elegível neste acesso.');
+      const agent = String(userAgent ?? '').replace(/[\x00-\x1f\x7f]/g, '').slice(0, 512);
+      const values = [JSON.stringify(clicks), agent, time, time + maxAdAge];
+      const [existing] = await tx.query('SELECT visit_key FROM pro_attribution WHERE visit_key = ?', [key]);
+      if (existing) return;
+      await tx.query('INSERT INTO pro_attribution (clicks_json, agent, opted_at, expires_at, visit_key) VALUES (?, ?, ?, ?, ?)', [...values, key]);
+    });
+    return { allowed: decision === 'allow' };
+  }
+
+  async function liveClicks(visitKey, consentedAt) {
+    const [row] = await db.query('SELECT clicks_json, agent, opted_at FROM pro_attribution WHERE visit_key = ? AND opted_at = ? AND expires_at > ?', [visitKey, consentedAt, now()]);
+    if (!row) return null;
+    const values = readMetadata(row.clicks_json);
+    const field = ['gclid', 'gbraid', 'wbraid'].find(key => validClick(values[key]));
+    return {
+      ...(validClick(values.fbclid) && row.agent ? { fbc: 'fb.1.' + Number(row.opted_at) + '.' + values.fbclid, agent: row.agent } : {}),
+      ...(field ? { google: { [field]: values[field] } } : {})
+    };
+  }
+
   async function bookingEvent(tx, row, type, transactionId) {
     const active = await access(tx);
     if (!active.features.length) return;
-    const [visit] = type === 'confirmed' ? await tx.query(`SELECT v.utm_json FROM landing_visit_bookings b
+    const [visit] = type === 'confirmed' ? await tx.query(`SELECT v.utm_json, v.visit_key FROM landing_visit_bookings b
       JOIN landing_visits v ON v.visit_key = b.visit_key WHERE b.appointment_id = ?`, [row.id]) : [];
     const markers = readMetadata(visit?.utm_json).rael_ad_channels;
     const channels = ['meta', 'google'].filter(value => Array.isArray(markers) && markers.includes(value));
@@ -116,7 +154,22 @@ export function createPro(db, license, config, { now = Date.now, deliver = confi
       type: 'appointment.' + type, at: new Date(now()).toISOString(), mode: 'test', synthetic: false,
       appointment: { id: row.id, startsAt: new Date(Number(row.starts_at)).toISOString() },
       attribution: channels };
-    await queue(tx, active, event, ['webhook', ...channels]);
+    if (!config.real) {
+      await queue(tx, active, event, ['webhook', ...channels]);
+      return;
+    }
+    if (type !== 'confirmed') return;
+    const live = { ...event, mode: 'live', attribution: [] };
+    if (config.webhook) await queue(tx, active, live, ['webhook']);
+    if (!visit?.visit_key || !active.features.includes('advanced_tracking')) return;
+    const [choice] = await tx.query('SELECT clicks_json, opted_at FROM pro_attribution WHERE visit_key = ? AND opted_at <= ? AND expires_at > ?',
+      [visit.visit_key, Number(row.created_at), now()]);
+    const clicks = readMetadata(choice?.clicks_json);
+    const destinations = [
+      ...(config.meta && validClick(clicks.fbclid) ? ['meta'] : []),
+      ...(config.google && ['gclid', 'gbraid', 'wbraid'].some(key => validClick(clicks[key])) ? ['google'] : [])
+    ];
+    await queue(tx, active, { ...live, visitKey: visit.visit_key, consentedAt: Number(choice?.opted_at) }, destinations);
   }
 
   async function testEvent() {
@@ -138,19 +191,22 @@ export function createPro(db, license, config, { now = Date.now, deliver = confi
     if (!config.webhook) throw failure(404, 'Receptor de teste indisponível.');
     const timestamp = headers['x-rael-timestamp'], id = headers['x-rael-event-id'];
     const denied = () => failure(401, 'Evento de teste não autenticado.');
-    if (headers['x-rael-mode'] !== 'test' || !/^[0-9]{10,11}$/.test(timestamp ?? '') ||
+    const mode = headers['x-rael-mode'];
+    if (!(mode === 'test' || (config.real && mode === 'live')) || !/^[0-9]{10,11}$/.test(timestamp ?? '') ||
       Math.abs(now() - Number(timestamp) * 1000) > 300_000 ||
-      !/^[a-f0-9-]{36}$/.test(id ?? '') ||
+      !(mode === 'test' ? validVisitRef(id) : /^[a-f0-9]{64}$/.test(id ?? '')) ||
       !equal(headers['x-rael-signature'], webhookSignature(config.webhook.secret, timestamp, bytes))) throw denied();
     await refresh();
     return db.transaction(async tx => {
       await readSettings(tx, true);
       const { version } = await assertFeature('webhooks', tx);
       const [row] = await tx.query("SELECT payload_json FROM pro_delivery WHERE event_id = ? AND destination = 'webhook' AND license_version = ?", [id, version]);
-      if (!row || !bytes.equals(Buffer.from(row.payload_json)) || JSON.parse(row.payload_json).synthetic !== true) throw denied();
+      if (!row || !bytes.equals(Buffer.from(row.payload_json))) throw denied();
+      const event = JSON.parse(row.payload_json);
+      if (event.mode !== mode || event.synthetic !== (mode === 'test') || event.type !== 'appointment.confirmed') throw denied();
       const [existing] = await tx.query('SELECT event_id FROM pro_webhook_receipt WHERE event_id = ?', [id]);
       if (!existing) await tx.query('INSERT INTO pro_webhook_receipt (event_id, received_at) VALUES (?, ?)', [id, now()]);
-      return { received: true, duplicate: Boolean(existing), eventId: id, mode: 'test' };
+      return { received: true, duplicate: Boolean(existing), eventId: id, mode };
     });
   }
 
@@ -180,7 +236,15 @@ export function createPro(db, license, config, { now = Date.now, deliver = confi
       if (row.license_version !== active.version || !active.features.includes(featureFor[row.destination])) break;
       const attempts = Number(row.attempts) + 1;
       let status, detail = '';
-      try { status = await deliver(row.destination, JSON.parse(row.payload_json)); }
+      try {
+        const event = JSON.parse(row.payload_json);
+        if (event.mode === 'live' && row.destination !== 'webhook') {
+          const clicks = config.real && event.visitKey ? await liveClicks(event.visitKey, event.consentedAt) : null;
+          status = clicks ? await deliver(row.destination, { ...event, clicks }) : 'skipped';
+        } else {
+          status = await deliver(row.destination, event);
+        }
+      }
       catch (error) {
         const code = Number(error.upstreamStatus);
         const phase = ['OAuth', 'Data Manager'].includes(error.upstreamStage) ? error.upstreamStage + ' ' : '';
@@ -192,6 +256,7 @@ export function createPro(db, license, config, { now = Date.now, deliver = confi
         [status, detail, attempts, now() + 60_000 * (2 ** (attempts - 1)), row.event_id, row.destination, row.lease_id]);
     }
     const cutoff = now() - 30 * 86_400_000;
+    await db.query('DELETE FROM pro_attribution WHERE expires_at <= ?', [now()]);
     await db.query('DELETE FROM pro_webhook_receipt WHERE received_at < ?', [cutoff]);
     await db.query('DELETE FROM pro_delivery WHERE created_at < ? AND lease_until <= ?', [cutoff, now()]);
   }
@@ -200,6 +265,8 @@ export function createPro(db, license, config, { now = Date.now, deliver = confi
     if (!working) working = drain().finally(() => { working = null; });
     return working;
   }
-  return { view, appointments, key, testEvent, bookingEvent, acceptWebhook, sweep,
-    async attribution(params) { return (await access()).features.includes('advanced_tracking') ? adChannels(params) : []; } };
+  return { view, appointments, key, testEvent, bookingEvent, acceptWebhook, consent, sweep,
+    async prepare() { if (config.real) await refresh(); },
+    async canConsent() { return Boolean(config.real && (config.meta || config.google) && (await access()).features.includes('advanced_tracking')); },
+    async attribution(params) { return !config.real && (await access()).features.includes('advanced_tracking') ? adChannels(params) : []; } };
 }

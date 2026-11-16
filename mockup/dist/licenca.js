@@ -117,7 +117,7 @@
   }
 
   const proLabels = { meta: 'Meta', google: 'Google Ads', webhook: 'Webhook' };
-  const proStatus = { simulated: 'Simulado localmente', received: 'Recebido pelo destino de teste', validated: 'Validado pelo Google', pending: 'Na fila', failed: 'Falhou' };
+  const proStatus = { simulated: 'Simulado localmente', received: 'Recebido pelo destino de teste', validated: 'Validado pelo Google', accepted: 'Google aceitou para processamento', skipped: 'Envio cancelado pela preferência de medição', pending: 'Na fila', failed: 'Falhou' };
   let proRequest, proBusy = false, proActive = false;
   function proMessage(message) { select('#pro-access').textContent = message; }
   function renderPro(data) {
@@ -138,7 +138,7 @@
     select('#pro-key').textContent = keyActive ? 'Substituir token' : 'Gerar token';
     if (!keyActive) clearApiKey();
     select('#pro-destinations').innerHTML = Object.entries(destinations).filter(([destination]) => destination === 'webhook' ? webhooks : tracking)
-      .map(([destination, configured]) => '<li>' + proLabels[destination] + ' · ' + (configured ? 'Destino de teste configurado' : 'Simulação local') + '</li>').join('');
+      .map(([destination, configured]) => '<li>' + proLabels[destination] + ' · ' + (configured ? (data.mode === 'live' ? 'Envio real habilitado' : 'Destino de teste configurado') : 'Simulação local') + '</li>').join('');
     select('#pro-deliveries').innerHTML = deliveries.map(row => '<li><strong>' + html(proLabels[row.destination]) + '</strong> · ' +
       html(proStatus[row.status]) + (row.detail ? ' · ' + html(row.detail) : '') + '<br><small class="muted">' +
       html(new Date(row.at).toLocaleString('pt-BR')) + ' · Evento ' + html(row.eventId.slice(0, 12)) + '</small></li>').join('') ||

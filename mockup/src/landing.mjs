@@ -45,7 +45,7 @@ function accessLinks(slug, utms, visitRef) {
   };
 }
 
-export function renderLanding(template, { slug, origin, data, fallbackName, sourceUrl, utms, visitRef }) {
+export function renderLanding(template, { slug, origin, data, fallbackName, sourceUrl, utms, visitRef, advertisingConsent }) {
   const business = data?.published?.business;
   const { title, brand, logoPath, style } = businessIdentity(slug, data, fallbackName);
   const bookingPath = escape(withUtms('/negocio/' + slug, utms, visitRef));
@@ -111,6 +111,12 @@ export function renderLanding(template, { slug, origin, data, fallbackName, sour
     '__BRAND__': brand,
     '__HERO__': hero,
     '__CATALOG__': catalog,
+    '__ADVERTISING_CONSENT__': advertisingConsent ? `<aside class="advertising-consent" id="advertising-consent" data-ref="${escape(visitRef)}" aria-labelledby="advertising-title" hidden>
+      <h2 id="advertising-title">Medição de anúncios</h2>
+      <p>Se você permitir, o identificador do clique pode ser enviado à Meta ou ao Google quando seu agendamento for confirmado. Você pode agendar sem permitir. <a href="/privacidade">Privacidade</a></p>
+      <div class="advertising-actions"><button type="button" data-choice="deny">Recusar</button><button type="button" data-choice="allow">Permitir medição</button></div>
+      <p data-advertising-status role="status"></p>
+    </aside><script src="/advertising-consent.js" defer></script>` : '',
     '__PLAN_LINK__': links,
     '__SOURCE_LINK__': sourceUrl ? '<a href="/codigo-fonte">Código-fonte</a>' : '',
     '__SLUG__': slug

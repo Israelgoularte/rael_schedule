@@ -121,4 +121,77 @@ test('conectores de teste usam sandbox, validação e HMAC e não enviam reserva
   assert.equal(webhook.redirect, 'error');
   assert.equal(webhook.headers['X-Rael-Event-Id'], event.id);
   assert.equal(webhook.headers['X-Rael-Signature'], webhookSignature(secret, webhook.headers['X-Rael-Timestamp'], webhook.body));
+  const send = async (url, options) => {
+    calls.push({ url, ...options });
+    if (url.endsWith('/token')) return Response.json({ access_token: 'fixture' });
+    return Response.json({ events_received: 1 });
+  };
+  const live = proDestinations({ ...config, slug: 'agenda', real: true }, send);
+  const confirmed = { ...event, mode: 'live', synthetic: false,
+    clicks: { fbc: 'fb.1.100.ClickFixture', agent: 'Test browser', google: { gclid: 'ClickFixture' } } };
+  await live('meta', confirmed);
+  const actualMeta = JSON.parse(calls.at(-1).body);
+  assert.equal(actualMeta.test_event_code, undefined);
+  assert.deepEqual(actualMeta.data[0].user_data, { fbc: 'fb.1.100.ClickFixture', client_user_agent: 'Test browser' });
+  assert.equal(await live('google', confirmed), 'accepted');
+  const actualGoogle = JSON.parse(calls.at(-1).body);
+  assert.equal(actualGoogle.validateOnly, false);
+  assert.deepEqual(actualGoogle.events[0].adIdentifiers, { gclid: 'ClickFixture' });
+  assert.equal(actualGoogle.consent.adPersonalization, 'CONSENT_DENIED');
+  assert.equal(await deliver('google', confirmed), 'simulated');
+});
+
+test('Real: webhook apenas na confirmação e publicidade apenas após optar', async t => {
+  const folder = await mkdtemp(join(tmpdir(), 'rael-pro-real-'));
+  const db = await openDatabase({ driver: 'sqlite', path: join(folder, 'real.sqlite') });
+  t.after(async () => { await db.close(); await rm(folder, { recursive: true }); });
+  await db.query("INSERT INTO business_settings (id, revision, draft_json) VALUES (1, 0, '{}')");
+  const time = Date.now(), cfg = { origin: 'https://pilot.example.invalid', real: true,
+    meta: {}, google: {}, webhook: { secret: '55'.repeat(32) } };
+  let claims = { features: ['advanced_tracking', 'webhooks'], version: 'test:1' };
+  const delivered = [];
+  const pro = createPro(db, { async proAccess() { return claims; }, async sweep() {} }, cfg, {
+    now: () => time, async deliver(destination, event) { delivered.push({ destination, event }); return 'received'; }
+  });
+  await db.query("INSERT INTO customers (id, email, name, phone, created_at) VALUES ('c', 'fake@example.invalid', 'Test', '55110000000', ?)", [time]);
+  async function reserve(id, decision) {
+    const ref = await countLandingView(db, {}, time);
+    const attributes = { gclid: 'AaBbCc_Fixture-Sample9', fbclid: 'AaBbCc_Fixture-Social7' };
+    if (decision === 'opt-in') await pro.consent(ref, 'allow', attributes, 'Test browser');
+    const visit = await findLandingVisit(db, ref, time);
+    const row = { id, starts_at: time + 600_000, created_at: time };
+    await db.query(`INSERT INTO appointments (id, customer_id, professional_id, service_id, starts_at, ends_at,
+      occupied_until, status, revision, snapshot_json, metadata_json, created_at, updated_at)
+      VALUES (?, 'c', 'pro', 's', ?, ?, ?, 'confirmed', 0, '{}', '{}', ?, ?)`,
+      [id, row.starts_at, row.starts_at + 600_000, row.starts_at + 600_000, time, time]);
+    await db.query('INSERT INTO landing_visit_bookings (appointment_id, visit_key) VALUES (?, ?)', [id, visit.visitKey]);
+    await db.transaction(async tx => {
+      await pro.bookingEvent(tx, row, 'confirmed');
+      await pro.bookingEvent(tx, row, 'confirmed');
+      await pro.bookingEvent(tx, row, 'cancelled');
+      await pro.bookingEvent(tx, row, 'rescheduled', 'revision');
+    });
+    return ref;
+  }
+  await reserve('confirmed-and-consented', 'opt-in');
+  await reserve('confirmed-no-consent');
+  const withdrawn = await reserve('confirmed-withdrawn', 'opt-in');
+  await pro.consent(withdrawn, 'deny', {}, '');
+  await pro.sweep();
+  const webhook = delivered.filter(v => v.destination === 'webhook');
+  assert.equal(webhook.length, 3);
+  assert.ok(webhook.every(v => v.event.type === 'appointment.confirmed' && v.event.mode === 'live' && !v.event.synthetic && !v.event.visitKey && !v.event.clicks));
+  assert.equal(delivered.filter(v => v.destination === 'google').length, 1);
+  assert.equal(delivered.filter(v => v.destination === 'meta').length, 1);
+  const body = Buffer.from(JSON.stringify(webhook[0].event));
+  const seconds = String(Math.floor(time / 1000));
+  const headers = { 'x-rael-mode': 'live', 'x-rael-event-id': webhook[0].event.id, 'x-rael-timestamp': seconds,
+    'x-rael-signature': webhookSignature(cfg.webhook.secret, seconds, body) };
+  assert.equal((await pro.acceptWebhook(headers, body)).mode, 'live');
+  assert.equal((await pro.acceptWebhook(headers, body)).duplicate, true);
+  claims = null;
+  await assert.rejects(pro.acceptWebhook(headers, body), { status: 403 });
+  await reserve('expired-license', '');
+  await pro.sweep();
+  assert.equal(delivered.length, 5);
 });

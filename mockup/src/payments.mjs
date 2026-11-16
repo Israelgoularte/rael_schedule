@@ -309,6 +309,7 @@ export function createPayments(db, slug, config, { authorizeWrite, pro } = {}) {
     const match = /^rael_([a-f0-9-]{36})$/.exec(payment.external_reference ?? '');
     if (!match) return { ignored: true };
     const environmentMatches = await paymentEnvironmentMatches(payment, mp.mode, connection.collector_id, connection.accessToken, request);
+    if (environmentMatches && payment.status === 'approved' && mp.mode === 'live') await pro?.prepare();
     return db.transaction(async tx => {
       const settings = await readSettings(tx, true); await expire(tx);
       const [intent] = await tx.query('SELECT * FROM mp_intents WHERE id = ? AND connection_id = ?', [match[1], connectionId]);
@@ -337,7 +338,7 @@ export function createPayments(db, slug, config, { authorizeWrite, pro } = {}) {
             if (!occupied.length && !blocks.length && !other.length && settings.draft.professionals.some(p => p.id === appointment.professional_id && p.active) && Number(appointment.starts_at) > now()) {
               await tx.query('UPDATE appointments SET status = ?, revision = revision + 1, updated_at = ? WHERE id = ?', ['confirmed', now(), appointment.id]); resolution = '';
               const eventKey = await event(tx, intent.id, String(paymentId), 'reservation_confirmed');
-              await pro?.bookingEvent(tx, appointment, 'confirmed', eventKey);
+              if (mp.mode === 'live' || !config.pro?.real) await pro?.bookingEvent(tx, appointment, 'confirmed', eventKey);
               await notifyAppointment(tx, { slug, appointmentId: appointment.id, eventKey, type: 'confirmed', now: now() });
             }
             else resolution = 'paid_without_slot';
