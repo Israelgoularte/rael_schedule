@@ -156,7 +156,7 @@ export async function verifyRestoredDatabase(db, encrypted, key) {
     if (rowDigest(actual) !== rowDigest(payload.tables[name])) throw new Error('Os dados restaurados não correspondem ao backup autenticado.');
     counts[name] = actual.length;
   }
-  for (const name of ['sessions', 'account_tokens', 'customer_sessions', 'customer_tokens', 'password_recovery_jobs', 'password_recovery_dispatch', 'mp_oauth_states', 'mp_integration_settings', 'installation_license', 'pro_api_key', 'pro_delivery', 'mp_application_claims', 'onboarding_submissions', 'onboarding_access_grants', 'automatic_registrations', 'tenant_runtime_leases']) {
+  for (const name of ['sessions', 'account_tokens', 'customer_sessions', 'customer_tokens', 'password_recovery_jobs', 'password_recovery_dispatch', 'mp_oauth_states', 'mp_integration_settings', 'installation_license', 'pro_api_key', 'pro_delivery', 'pro_webhook_receipt', 'mp_application_claims', 'onboarding_submissions', 'onboarding_access_grants', 'automatic_registrations', 'tenant_runtime_leases']) {
     const [row] = await db.query(`SELECT COUNT(*) AS total FROM ${name}`);
     if (Number(row.total) !== 0) throw new Error('A restauração não deve ativar sessões ou integrações.');
   }
@@ -168,7 +168,7 @@ export async function restoreDatabase(db, encrypted, key, options = {}) {
   const destination = options.destinationSlug ?? options.confirmSource;
   if (payload.version === 2 && destination !== payload.source.slug && options.allowDifferentDestination !== destination) throw new Error('A restauração em outro negócio exige confirmação explícita do destino.');
   await db.transaction(async tx => {
-    for (const name of [...Object.keys(tables), 'sessions', 'account_tokens', 'customer_sessions', 'customer_tokens', 'password_recovery_jobs', 'password_recovery_dispatch', 'mp_oauth_states', 'mp_integration_settings', 'installation_license', 'pro_api_key', 'pro_delivery', 'mp_application_claims', 'onboarding_submissions', 'onboarding_access_grants', 'automatic_registrations', 'auth_attempts', 'tenant_runtime_leases']) {
+    for (const name of [...Object.keys(tables), 'sessions', 'account_tokens', 'customer_sessions', 'customer_tokens', 'password_recovery_jobs', 'password_recovery_dispatch', 'mp_oauth_states', 'mp_integration_settings', 'installation_license', 'pro_api_key', 'pro_delivery', 'pro_webhook_receipt', 'mp_application_claims', 'onboarding_submissions', 'onboarding_access_grants', 'automatic_registrations', 'auth_attempts', 'tenant_runtime_leases']) {
       const [row] = await tx.query(`SELECT COUNT(*) AS total FROM ${name}`);
       if (Number(row.total) !== 0) throw new Error('A restauração só é permitida em um banco vazio, nunca sobre dados existentes.');
     }

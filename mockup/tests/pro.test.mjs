@@ -24,7 +24,8 @@ test('fila e API usam as permissões assinadas e param quando a licença perde a
   const features = ['api', 'webhooks', 'advanced_tracking'];
   let claims = null;
   const received = [];
-  const pro = createPro(db, { async proAccess() { return claims; }, async sweep() {} }, { origin: 'https://example.invalid' }, {
+  const receiptSecret = '24'.repeat(32);
+  const pro = createPro(db, { async proAccess() { return claims; }, async sweep() {} }, { origin: 'https://example.invalid', webhook: { secret: receiptSecret } }, {
     now: () => time, async deliver(destination, event) {
       received.push({ destination, ...event });
       return 'simulated';
@@ -61,6 +62,15 @@ test('fila e API usam as permissões assinadas e param quando a licença perde a
   assert.notEqual(apiKey, next.apiKey);
 
   const testEvent = await pro.testEvent();
+  const [queued] = await db.query("SELECT payload_json FROM pro_delivery WHERE event_id = ? AND destination = 'webhook'", [testEvent.eventId]);
+  const bytes = Buffer.from(queued.payload_json);
+  const seconds = String(Math.floor(time / 1000));
+  const headers = { 'x-rael-mode': 'test', 'x-rael-event-id': testEvent.eventId, 'x-rael-timestamp': seconds,
+    'x-rael-signature': webhookSignature(receiptSecret, seconds, bytes) };
+  await assert.rejects(pro.acceptWebhook(headers, Buffer.concat([bytes, Buffer.from(' ')])), { status: 401 });
+  await assert.rejects(pro.acceptWebhook({ ...headers, 'x-rael-timestamp': String(Number(seconds) - 400) }, bytes), { status: 401 });
+  assert.equal((await pro.acceptWebhook(headers, bytes)).duplicate, false);
+  assert.equal((await pro.acceptWebhook(headers, bytes)).duplicate, true);
   claims = null;
   await pro.sweep();
   assert.equal(received.length, 3);

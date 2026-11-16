@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { readSettings } from './database.mjs';
 import { readMetadata } from './metadata.mjs';
 import { digest, equal, failure, rateLimit } from './security.mjs';
-import { proDestinations } from './pro-destinations.mjs';
+import { proDestinations, webhookSignature } from './pro-destinations.mjs';
 
 const featureFor = { meta: 'advanced_tracking', google: 'advanced_tracking', webhook: 'webhooks' };
 const allFeatures = [...new Set(['api', ...Object.values(featureFor)])];
@@ -134,6 +134,26 @@ export function createPro(db, license, config, { now = Date.now, deliver = confi
     });
   }
 
+  async function acceptWebhook(headers, bytes) {
+    if (!config.webhook) throw failure(404, 'Receptor de teste indisponível.');
+    const timestamp = headers['x-rael-timestamp'], id = headers['x-rael-event-id'];
+    const denied = () => failure(401, 'Evento de teste não autenticado.');
+    if (headers['x-rael-mode'] !== 'test' || !/^[0-9]{10,11}$/.test(timestamp ?? '') ||
+      Math.abs(now() - Number(timestamp) * 1000) > 300_000 ||
+      !/^[a-f0-9-]{36}$/.test(id ?? '') ||
+      !equal(headers['x-rael-signature'], webhookSignature(config.webhook.secret, timestamp, bytes))) throw denied();
+    await refresh();
+    return db.transaction(async tx => {
+      await readSettings(tx, true);
+      const { version } = await assertFeature('webhooks', tx);
+      const [row] = await tx.query("SELECT payload_json FROM pro_delivery WHERE event_id = ? AND destination = 'webhook' AND license_version = ?", [id, version]);
+      if (!row || !bytes.equals(Buffer.from(row.payload_json)) || JSON.parse(row.payload_json).synthetic !== true) throw denied();
+      const [existing] = await tx.query('SELECT event_id FROM pro_webhook_receipt WHERE event_id = ?', [id]);
+      if (!existing) await tx.query('INSERT INTO pro_webhook_receipt (event_id, received_at) VALUES (?, ?)', [id, now()]);
+      return { received: true, duplicate: Boolean(existing), eventId: id, mode: 'test' };
+    });
+  }
+
   async function claim() {
     return db.transaction(async tx => {
       await readSettings(tx, true);
@@ -169,13 +189,15 @@ export function createPro(db, license, config, { now = Date.now, deliver = confi
       await db.query('UPDATE pro_delivery SET status = ?, details = ?, attempts = ?, next_at = ?, lease_id = NULL, lease_until = 0 WHERE event_id = ? AND destination = ? AND lease_id = ?',
         [status, detail, attempts, now() + 60_000 * (2 ** (attempts - 1)), row.event_id, row.destination, row.lease_id]);
     }
-    await db.query("DELETE FROM pro_delivery WHERE created_at < ? AND lease_until <= ?", [now() - 30 * 86_400_000, now()]);
+    const cutoff = now() - 30 * 86_400_000;
+    await db.query('DELETE FROM pro_webhook_receipt WHERE received_at < ?', [cutoff]);
+    await db.query('DELETE FROM pro_delivery WHERE created_at < ? AND lease_until <= ?', [cutoff, now()]);
   }
 
   function sweep() {
     if (!working) working = drain().finally(() => { working = null; });
     return working;
   }
-  return { view, appointments, key, testEvent, bookingEvent, sweep,
+  return { view, appointments, key, testEvent, bookingEvent, acceptWebhook, sweep,
     async attribution(params) { return (await access()).features.includes('advanced_tracking') ? adChannels(params) : []; } };
 }

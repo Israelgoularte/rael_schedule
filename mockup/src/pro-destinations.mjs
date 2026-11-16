@@ -53,7 +53,7 @@ export function googleEvent(event, config) {
 }
 
 export const webhookSignature = (secret, seconds, body) =>
-  'sha256=' + createHmac('sha256', Buffer.from(secret, 'hex')).update(seconds + '.' + body).digest('hex');
+  'sha256=' + createHmac('sha256', Buffer.from(secret, 'hex')).update(seconds + '.').update(body).digest('hex');
 
 export function proDestinations(config, send = fetch) {
   const localSigningKey = randomBytes(32).toString('hex');

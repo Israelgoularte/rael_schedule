@@ -18,16 +18,20 @@ import { createRecoveryMailer } from './recovery-mail.mjs';
 import { createPasswordRecovery } from './password-recovery.mjs';
 
 const json = (res, status, body) => { const bytes = Buffer.from(JSON.stringify(body)); res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': bytes.length }).end(bytes); };
-async function body(req, limit = 256 * 1024) {
-  if (!String(req.headers['content-type'] ?? '').startsWith('application/json')) throw failure(415, 'Envie dados no formato esperado.');
+async function requestBytes(req, limit) {
   const chunks = []; let length = 0;
   for await (const chunk of req) {
     length += chunk.length;
     if (length > limit) throw failure(413, 'O conteúdo ficou muito grande. Reduza a imagem ou os textos e tente novamente.');
     chunks.push(chunk);
   }
+  return Buffer.concat(chunks);
+}
+async function body(req, limit = 256 * 1024) {
+  if (!String(req.headers['content-type'] ?? '').startsWith('application/json')) throw failure(415, 'Envie dados no formato esperado.');
+  const bytes = await requestBytes(req, limit);
   try {
-    const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    const parsed = JSON.parse(bytes.toString('utf8'));
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error();
     return parsed;
   } catch { throw failure(400, 'Não foi possível ler os dados. Recarregue e tente novamente.'); }
@@ -236,6 +240,18 @@ export async function createFoundation(config) {
     async publicSharePreview(slug) { return (await publicShareSource(slug))?.identity ?? null; },
     publicShareImage,
     async handle(req, res, url) {
+      if (url.pathname === '/api/v1/test-webhook/receipt') {
+        if (!config.standalone || !config.pro?.webhook) return false;
+        res.setHeader('Cache-Control', 'no-store');
+        try {
+          if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); throw failure(405, 'Ação não permitida.'); }
+          const service = await get(Object.keys(config.entries)[0]);
+          json(res, 200, await service.pro.acceptWebhook(req.headers, await requestBytes(req, 4096)));
+        } catch (error) {
+          json(res, error.status ?? 500, { error: error.status ? error.message : 'Não foi possível registrar o evento.' });
+        }
+        return true;
+      }
       if (url.pathname === '/api/v1/appointments') {
         if (!config.standalone || !config.pro) return false;
         try {
