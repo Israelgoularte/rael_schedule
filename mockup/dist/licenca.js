@@ -116,6 +116,83 @@
     } finally { busy = false; }
   }
 
+  const proLabels = { meta: 'Meta', google: 'Google Ads', webhook: 'Webhook' };
+  const proStatus = { simulated: 'Simulado localmente', received: 'Recebido pelo destino de teste', validated: 'Validado pelo Google', pending: 'Na fila', failed: 'Falhou' };
+  let proRequest, proBusy = false, proActive = false;
+  function proMessage(message) { select('#pro-access').textContent = message; }
+  function renderPro(data) {
+    const { features, keyActive, deliveries, destinations } = data;
+    const enabled = features.length > 0;
+    if (enabled && !proActive) proMessage('Licença PRO ativa.');
+    proActive = enabled;
+    select('#pro-controls').hidden = !enabled;
+    if (!enabled) {
+      clearApiKey();
+      proMessage('Disponível com uma licença PRO ativa.');
+      return;
+    }
+    const tracking = features.includes('advanced_tracking'), webhooks = features.includes('webhooks');
+    select('#pro-api').hidden = !features.includes('api');
+    select('#pro-test').hidden = !tracking && !webhooks;
+    select('#pro-revoke').hidden = !keyActive;
+    select('#pro-key').textContent = keyActive ? 'Substituir token' : 'Gerar token';
+    if (!keyActive) clearApiKey();
+    select('#pro-destinations').innerHTML = Object.entries(destinations).filter(([destination]) => destination === 'webhook' ? webhooks : tracking)
+      .map(([destination, configured]) => '<li>' + proLabels[destination] + ' · ' + (configured ? 'Destino de teste configurado' : 'Simulação local') + '</li>').join('');
+    select('#pro-deliveries').innerHTML = deliveries.map(row => '<li><strong>' + html(proLabels[row.destination]) + '</strong> · ' +
+      html(proStatus[row.status]) + (row.detail ? ' · ' + html(row.detail) : '') + '<br><small class="muted">' +
+      html(new Date(row.at).toLocaleString('pt-BR')) + ' · Evento ' + html(row.eventId.slice(0, 12)) + '</small></li>').join('') ||
+      '<li class="muted">Nenhuma entrega registrada.</li>';
+  }
+
+  function clearApiKey() {
+    select('#pro-created-value').value = '';
+    select('#pro-created-key').hidden = true;
+  }
+  function loadPro() {
+    if (!proRequest) proRequest = request('pro').then(renderPro).finally(() => { proRequest = null; });
+    return proRequest;
+  }
+  async function runPro(action) {
+    if (proBusy) return;
+    proBusy = true;
+    try {
+      if (action === 'refresh') {
+        proMessage('');
+        await loadPro();
+      } else if (action === 'check') {
+        const key = select('#pro-created-value').value;
+        const response = await fetch('/api/v1/appointments?limit=1', {
+          credentials: 'omit', headers: { Authorization: 'Bearer ' + key }, cache: 'no-store'
+        });
+        if (!response.ok) throw new Error('A consulta de teste não foi autorizada (HTTP ' + response.status + ').');
+        const result = await response.json();
+        proMessage('Consulta autenticada. ' + (result.appointments.length ? 'A API retornou dados de agenda.' : 'Nenhum agendamento nesta instalação.'));
+      } else {
+        const result = await request('pro/' + action, {});
+        if (proRequest) await proRequest;
+        await loadPro();
+        if (action === 'key') {
+          select('#pro-created-value').value = result.apiKey;
+          select('#pro-created-key').hidden = false;
+          proMessage('Token criado. Copie-o antes de sair desta página.');
+        }
+        if (action === 'key/revoke') {
+          clearApiKey();
+          proMessage('Token revogado.');
+        }
+        if (action === 'test-event') {
+          proMessage('Evento de teste enfileirado. Consulte Entregas recentes.');
+          setTimeout(() => { loadPro().catch(() => {}); }, 1200);
+        }
+      }
+    } catch (error) { proMessage(error.message); }
+    finally { proBusy = false; }
+  }
+  for (const [id, action] of Object.entries({ 'pro-test': 'test-event', 'pro-refresh': 'refresh', 'pro-key': 'key', 'pro-revoke': 'key/revoke', 'pro-check-api': 'check' })) {
+    select('#' + id).addEventListener('click', () => runPro(action));
+  }
+
   select('#license-purchase [name="plan"]').addEventListener('change', event => {
     const custom = event.target.value === 'custom';
     select('#license-proposal').hidden = !custom;
@@ -144,6 +221,13 @@
       });
       window.RaelWorkspace.sync();
       await refresh();
+      if (session.user.proAvailable) {
+        select('#license-pro').hidden = false;
+        loadPro().catch(error => proMessage(error.message));
+        setInterval(() => {
+          if (!document.hidden && !proBusy) loadPro().catch(error => proMessage(error.message));
+        }, 15000);
+      }
       select('#license-access').hidden = true;
       select('#license-panel').hidden = false;
       setInterval(() => {

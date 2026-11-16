@@ -11,7 +11,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "build": "node scripts/build.mjs",
-    "test": "node --test tests/standalone.test.mjs tests/installation-license.test.mjs"
+    "test": "node --test tests/standalone.test.mjs tests/installation-license.test.mjs tests/pro.test.mjs"
   },
   "dependencies": {
     "@js-temporal/polyfill": "0.5.1",

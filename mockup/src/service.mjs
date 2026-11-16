@@ -9,6 +9,7 @@ import { createSubscriptions } from './subscriptions.mjs';
 import { createCustomers } from './customers.mjs';
 import { createFinance } from './finance.mjs';
 import { createLicense } from './license.mjs';
+import { createPro } from './pro.mjs';
 import { createInstallationLicense } from './installation-license.mjs';
 import { createNotifications } from './notifications.mjs';
 import { trafficReport } from './traffic.mjs';
@@ -64,15 +65,16 @@ export async function provisionAutomaticTenant(db, { registrationId, slug, name,
 export function createService(db, slug, config, dummyHash) {
   const cookieName = `${config.origin.startsWith('https://') ? '__Host-' : ''}rael_session_${slug}`;
   const license = createLicense(db, slug, config);
-  const payments = createPayments(db, slug, config, { authorizeWrite: currentSession });
-  const subscriptions = createSubscriptions(db, slug, config, payments, license);
   const installationLicense = createInstallationLicense(db, config.standalone && config.installationLicensing);
-  const booking = createBookings(db, slug, config, dummyHash, payments, subscriptions, license, installationLicense);
+  const pro = createPro(db, installationLicense, config.pro);
+  const payments = createPayments(db, slug, config, { authorizeWrite: currentSession, pro });
+  const subscriptions = createSubscriptions(db, slug, config, payments, license);
+  const booking = createBookings(db, slug, config, dummyHash, payments, subscriptions, license, installationLicense, pro);
   const customers = createCustomers(db, config);
   const finance = createFinance(db, config, payments);
   const notifications = createNotifications(db, slug, config, license);
   const accessLink = (kind, value) => `${config.origin}/sistema/${slug}#${kind === 'invite' ? 'ativar' : 'recuperar'}=${value}`;
-  const userView = user => ({ id: user.id, name: user.name, email: user.email, role: user.role, professionalId: user.professional_id, ...(installationLicense && user.role === 'admin' ? { installationLicenseAvailable: true } : {}) });
+  const userView = user => ({ id: user.id, name: user.name, email: user.email, role: user.role, professionalId: user.professional_id, ...(installationLicense && user.role === 'admin' ? { installationLicenseAvailable: true, ...(pro ? { proAvailable: true } : {}) } : {}) });
   async function imageUrls() {
     const rows = await db.query('SELECT image_key, version FROM business_images');
     return Object.fromEntries(rows.map(row => [row.image_key, `/media/${slug}/${row.image_key}/${row.version}.webp`]));
@@ -353,7 +355,7 @@ export function createService(db, slug, config, dummyHash) {
     if (!row) throw failure(404, 'Imagem não encontrada.');
     return Buffer.from(row.image_base64, 'base64');
   }
-  return { cookieName, session, login, activate, changePassword, recovery, operatorAccess, operatorRecovery, withCurrentSession, assertCurrentSession: async (tx, actor, settings) => currentSession(tx, actor, settings ?? await readSettings(tx, true)), snapshot, save, publish, invite, ownReceiving, ownHours, accessStatus, saveImage, image, booking, payments, subscriptions, customers, finance, license, installationLicense, notifications,
+  return { cookieName, session, login, activate, changePassword, recovery, operatorAccess, operatorRecovery, withCurrentSession, assertCurrentSession: async (tx, actor, settings) => currentSession(tx, actor, settings ?? await readSettings(tx, true)), snapshot, save, publish, invite, ownReceiving, ownHours, accessStatus, saveImage, image, booking, payments, subscriptions, customers, finance, license, installationLicense, pro, notifications,
     async traffic(user, query) {
       if (user.role !== 'admin') throw failure(403, 'Somente o gestor pode consultar o relatório de acessos.');
       const settings = await readSettings(db);

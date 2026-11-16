@@ -2,6 +2,8 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 const schema = [
+  `CREATE TABLE IF NOT EXISTS pro_api_key (id INTEGER PRIMARY KEY, key_hash VARCHAR(64) NOT NULL, license_version VARCHAR(80) NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS pro_delivery (event_id VARCHAR(64) NOT NULL, destination VARCHAR(12) NOT NULL, license_version VARCHAR(80) NOT NULL, payload_json LONGTEXT NOT NULL, status VARCHAR(16) NOT NULL, details VARCHAR(32) NOT NULL, attempts INTEGER NOT NULL, next_at BIGINT NOT NULL, lease_until BIGINT NOT NULL, lease_id VARCHAR(36) NULL, created_at BIGINT NOT NULL, PRIMARY KEY (event_id, destination))`,
   `CREATE TABLE IF NOT EXISTS installation_license (id INTEGER PRIMARY KEY, installation_id VARCHAR(36) NOT NULL, credential VARCHAR(43) NOT NULL, registered INTEGER NOT NULL, token LONGTEXT NULL, remote_state VARCHAR(16) NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at BIGINT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS notifications (id VARCHAR(64) PRIMARY KEY, recipient_type VARCHAR(16) NOT NULL, recipient_id VARCHAR(36) NOT NULL, title VARCHAR(120) NOT NULL, body VARCHAR(500) NOT NULL, url VARCHAR(500) NOT NULL, event_key VARCHAR(64) NOT NULL, created_at BIGINT NOT NULL, read_at BIGINT NULL)`,

@@ -19,6 +19,7 @@ test('a licença da instalação acompanha compra, renovação e recuperação e
   const licenseId = randomUUID(), orderId = randomUUID();
   const day = 86_400_000, initial = Date.UTC(2026, 0, 1);
   let time = initial, validity = initial + 365 * day;
+  let plan = 'team';
   let registered, paid = false, connected = true, sandbox = true, wrongSubject = false, tamper = false, moved = false;
   const calls = [];
   const service = createInstallationLicense(db, true, {
@@ -51,7 +52,7 @@ test('a licença da instalação acompanha compra, renovação e recuperação e
       if (!paid || moved) return Response.json({ status: 'community', product });
       const payload = Buffer.from(JSON.stringify({
         schema: 'rael-license-v1', keyId, product, installationId: wrongSubject ? randomUUID() : registered.id,
-        licenseId, activationVersion: 1, plan: 'team', seats: 20, features: [],
+        licenseId, activationVersion: 1, plan, seats: 20, features: ['api', 'webhooks', 'advanced_tracking'],
         validFrom: new Date(initial).toISOString(), expiresAt: new Date(validity).toISOString(),
         graceUntil: new Date(validity + day).toISOString()
       }));
@@ -81,6 +82,10 @@ test('a licença da instalação acompanha compra, renovação e recuperação e
   const active = await service.view();
   assert.equal(active.license.status, 'active');
   assert.equal(active.license.seats, 20);
+  assert.equal(await service.proAccess(), null);
+  plan = 'pro';
+  await service.sweep();
+  assert.deepEqual((await service.proAccess()).features, ['api', 'webhooks', 'advanced_tracking']);
   assert.doesNotMatch(JSON.stringify(active), new RegExp(registered.credential + '|' + registered.id));
   assert.deepEqual([...await service.bookable(db, settings)], ['a', 'b', 'c']);
   await service.assertSeats(db, settings, professionals, true);
@@ -90,8 +95,13 @@ test('a licença da instalação acompanha compra, renovação e recuperação e
 
   connected = false;
   assert.equal((await service.view()).license.status, 'active');
+  time += 300_001;
+  assert.equal(await service.proAccess(), null);
   time = validity;
+  connected = true;
+  await service.sweep();
   assert.equal((await service.current()).status, 'grace');
+  assert.equal(await service.proAccess(), null);
   time += day;
   assert.equal((await service.current()).status, 'expired');
   assert.equal((await service.current()).seats, 2);

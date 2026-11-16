@@ -1,3 +1,4 @@
+import { proConfiguration } from './pro-destinations.mjs';
 import { digest } from './security.mjs';
 import { loadConfiguration, validSlug } from './configuration.mjs';
 
@@ -51,5 +52,5 @@ export async function loadStandaloneConfiguration(env = process.env) {
     sourceUrl = url.href;
   }
   const publicName = (env.APP_PUBLIC_NAME || env.APP_BUSINESS_NAME || '').trim().slice(0, 120);
-  return { ...config, sourceUrl, publicName, standalone: true, installationLicensing: env.APP_LICENSE_MODE === 'test' };
+  return { ...config, sourceUrl, publicName, standalone: true, installationLicensing: env.APP_LICENSE_MODE === 'test', pro: proConfiguration(env, config.origin) };
 }

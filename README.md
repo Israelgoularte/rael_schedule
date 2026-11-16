@@ -38,6 +38,18 @@ No piloto, `APP_LICENSE_MODE=test` disponibiliza **Configurações → Licença 
 - A renovação é anual e manual. Prepare o pedido no painel e pague pelo checkout de teste.
 - Após reinstalar, solicite a recuperação com o e-mail da compra e confirme a transferência pelo link recebido. A validade é preservada. O backup lógico não inclui a identidade da instalação.
 
+## Integrações PRO em homologação
+
+Para o piloto, configure `APP_PRO_MODE=test` com `APP_LICENSE_MODE=test`. Em **Configurações → Licença do sistema → Integrações PRO**, o gestor pode testar conversões, acompanhar entregas e gerar ou revogar o token da API. Cada permissão vem da licença PRO assinada e válida. Quando a licença vence ou sai da instalação, as integrações são bloqueadas.
+
+- **Rastreamento.** A visita guarda apenas a presença de sinais de Meta (`fbclid`) ou Google (`gclid`, `gbraid`, `wbraid`). Ao confirmar a reserva, o vínculo com o acesso atribui a origem. As conversões são deduplicadas por agendamento. Nenhum dado de cliente é enviado aos destinos externos neste modo.
+- **Meta.** Para receber um evento sintético `Schedule` em um conjunto de dados exclusivo de teste, configure `APP_PRO_META_TEST_DATASET_ID`, `APP_PRO_META_TEST_TOKEN` e `APP_PRO_META_TEST_EVENT_CODE` no servidor. Use um conjunto separado, pois eventos com código de teste podem aparecer no Gerenciador de Eventos.
+- **Google Ads.** Configure `APP_PRO_GOOGLE_TEST_ACCOUNT`, `APP_PRO_GOOGLE_TEST_ACTION`, `APP_PRO_GOOGLE_CLIENT_ID`, `APP_PRO_GOOGLE_CLIENT_SECRET` e `APP_PRO_GOOGLE_REFRESH_TOKEN`. O refresh token requer o escopo `https://www.googleapis.com/auth/datamanager` e acesso à conta que possui uma ação de importação. O piloto sempre envia `validateOnly: true`.
+- **API.** Envie `Authorization: Bearer <token de teste>` para `GET /api/v1/appointments?limit=30&offset=0&status=confirmed`. A resposta inclui os horários, o status e IDs operacionais, e `nextOffset` informa a próxima página. O token troca imediatamente ao gerar outro. O backup lógico exclui tokens e fila de eventos.
+- **Webhooks.** Defina `APP_PRO_WEBHOOK_TEST_URL` com um endereço HTTPS controlado e `APP_PRO_WEBHOOK_TEST_SECRET` com 32 bytes em hexadecimal. Neste modo apenas o teste sintético do painel pode chegar ao endereço externo. O receptor valida `X-Rael-Signature` como `sha256=<HMAC-SHA256 do timestamp, ponto e corpo JSON bruto>`, usando os bytes do segredo e `X-Rael-Timestamp`. Rejeite timestamps fora da janela do receptor, compare em tempo constante e deduplique por `X-Rael-Event-Id`. A fila local registra confirmação, remarcação e cancelamento, repete falhas transitórias e guarda o histórico por 30 dias.
+
+Sem credenciais de teste, o painel mostra **Simulado localmente**. O modo atual deve continuar restrito à homologação.
+
 ## Operação
 
 Em **Negócio**, adicione uma foto horizontal de capa para a página inicial. A capa pode ser trocada ou removida sem alterar o logo. Em **Acessos**, o gestor pode consultar o gráfico diário e filtrar por período, origem, meio e campanha. Use os atalhos de 7, 30 ou 90 dias ou datas personalizadas. A taxa por campanha divide os acessos rastreados que geraram ao menos um agendamento em até duas horas pelo total de acessos rastreados no período. A mesma abertura conta uma vez, mesmo com várias reservas, e a conversão pertence à data do acesso. Os totais de acessos e agendamentos também incluem o histórico sem vínculo. Para marcar uma campanha, compartilhe `https://SEU_DOMINIO/?utm_source=instagram&utm_medium=social&utm_campaign=lancamento`.

@@ -229,13 +229,24 @@ export async function createFoundation(config) {
         .filter(image => activeIds.has(image.image_key))
         .map(image => [image.image_key, image.version])) };
     },
-    async recordLandingView(slug, utms) {
-      const { db } = await ensure(slug);
-      return countLandingView(db, utms, (config.now ?? Date.now)());
+    async recordLandingView(slug, utms, query) {
+      const { db, service } = await ensure(slug);
+      return countLandingView(db, utms, (config.now ?? Date.now)(), query ? await service.pro?.attribution(query) : undefined);
     },
     async publicSharePreview(slug) { return (await publicShareSource(slug))?.identity ?? null; },
     publicShareImage,
     async handle(req, res, url) {
+      if (url.pathname === '/api/v1/appointments') {
+        if (!config.standalone || !config.pro) return false;
+        try {
+          if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); throw failure(405, 'Ação não permitida.'); }
+          const service = await get(Object.keys(config.entries)[0]);
+          json(res, 200, await service.pro.appointments(req.headers.authorization, url.searchParams));
+        } catch (error) {
+          json(res, error.status ?? 500, { error: error.status ? error.message : 'Não foi possível consultar os agendamentos.' });
+        }
+        return true;
+      }
       const socialImage = /^\/social\/([a-z0-9][a-z0-9-]{1,47})\/([a-f0-9]{32})\.png$/.exec(url.pathname);
       if (socialImage) {
         res.setHeader('Cache-Control', 'no-store');
@@ -443,6 +454,24 @@ export async function createFoundation(config) {
         const rawToken = cookies(req)[service.cookieName];
         const user = await service.session(rawToken);
         if (req.method !== 'GET') service.verifyCsrf(user, req.headers['x-csrf-token']);
+        if (path === 'pro' || path.startsWith('pro/')) {
+          if (!service.pro) throw failure(404, 'Página não encontrada.');
+          if (user.role !== 'admin') throw failure(403, 'Somente o administrador pode gerenciar os recursos PRO.');
+          if (path === 'pro' && req.method === 'GET') {
+            json(res, 200, await service.pro.view()); return true;
+          }
+          if (req.method === 'POST') {
+            if (path === 'pro/key' || path === 'pro/key/revoke') {
+              json(res, 200, await service.pro.key(path === 'pro/key')); return true;
+            }
+            if (path === 'pro/test-event') {
+              const test = await service.pro.testEvent();
+              service.pro.sweep().catch(error => maintenanceFailure(slug, 'pro', error));
+              json(res, 202, test); return true;
+            }
+          }
+          throw failure(405, 'Ação não permitida.');
+        }
         if (path === 'installation-license' || path.startsWith('installation-license/')) {
           if (!service.installationLicense) throw failure(404, 'Página não encontrada.');
           if (user.role !== 'admin') throw failure(403, 'Somente o administrador pode gerenciar a licença.');
@@ -573,7 +602,7 @@ export async function createFoundation(config) {
       maintenanceReports.set(slug, report);
       try {
         const service = await get(slug);
-        for (const [component, module] of [['payments', service.payments], ['subscriptions', service.subscriptions], ['license', service.license], ['installation_license', service.installationLicense], ['notifications', service.notifications], ['recovery_email', service.emailRecovery]]) {
+        for (const [component, module] of [['payments', service.payments], ['subscriptions', service.subscriptions], ['license', service.license], ['installation_license', service.installationLicense], ['pro', service.pro], ['notifications', service.notifications], ['recovery_email', service.emailRecovery]]) {
           try { await module?.sweep(component === 'notifications' ? { deliver: false } : undefined); } catch (error) { maintenanceFailure(slug, component, error); }
         }
       } catch (error) { maintenanceFailure(slug, 'database', error); }

@@ -55,6 +55,35 @@
           </form>
         </section>
       </div>
+      <section class="card license-pro" id="license-pro" aria-labelledby="license-pro-title" hidden>
+        <h2 id="license-pro-title">Integrações PRO</h2>
+        <p id="pro-access" role="status"></p>
+        <div id="pro-controls" hidden>
+          <p>O rastreamento reconhece a origem Meta ou Google em visitas que geram um agendamento confirmado. Os envios de homologação usam somente dados fictícios.</p>
+          <ul class="license-pro-destinations" id="pro-destinations"></ul>
+          <div class="license-actions">
+            <button class="button" id="pro-test" type="button">Simular conversão e webhook</button>
+            <button class="button secondary" id="pro-refresh" type="button">Atualizar entregas</button>
+          </div>
+          <section id="pro-api" class="license-pro-part" aria-labelledby="pro-api-title" hidden>
+            <h3 id="pro-api-title">API de agendamentos</h3>
+            <p>Consulta com token Bearer, sem nomes, e-mails ou telefones.</p>
+            <p><code>GET /api/v1/appointments?limit=30&amp;offset=0</code></p>
+            <div class="license-actions">
+              <button class="button secondary" id="pro-key" type="button">Gerar token</button>
+              <button class="button secondary" id="pro-revoke" type="button" hidden>Revogar token</button>
+            </div>
+            <div id="pro-created-key" hidden>
+              <label class="field"><span>Token de teste exibido uma única vez</span><input id="pro-created-value" readonly autocomplete="off" spellcheck="false"></label>
+              <button type="button" class="button secondary" id="pro-check-api">Testar consulta com este token</button>
+            </div>
+          </section>
+          <section class="license-pro-part" aria-labelledby="pro-deliveries-title">
+            <h3 id="pro-deliveries-title">Entregas recentes</h3>
+            <ul class="license-orders" id="pro-deliveries"></ul>
+          </section>
+        </div>
+      </section>
     </div>
   </main>
 </body>

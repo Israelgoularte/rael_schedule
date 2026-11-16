@@ -190,7 +190,7 @@ const server = createServer(async (req, res) => {
       const crawler = /bot\b|crawler|spider|facebookexternalhit|whatsapp|slackbot/i.test(String(req.headers['user-agent'] ?? ''));
       if (accessMode) view.visitRef = requestUrl.searchParams.get(visitParam);
       else if (req.method === 'GET' && !speculative && !crawler && [undefined, 'document'].includes(req.headers['sec-fetch-dest'])) {
-        view.visitRef = await foundation.recordLandingView(standaloneSlug, view.utms)
+        view.visitRef = await foundation.recordLandingView(standaloneSlug, view.utms, requestUrl.searchParams)
           .catch(error => observability.failure('landing_traffic_failed', error));
       }
       bytes = Buffer.from(accessMode
@@ -219,6 +219,7 @@ server.listen(port, process.env.HOST ?? '0.0.0.0', () => {
   // Private startup evidence for runtime patch and restart audits. No config,
   // tenant identifiers or credentials are included in this operational event.
   console.log(JSON.stringify({ event: 'runtime_started', timestamp: Date.now(), nodeVersion: process.version }));
+  if (config.pro) foundation.maintenance().catch(error => observability.failure('maintenance_failed', error));
   // Check SMTP authentication once after startup without sending a message or
   // delaying HTTP readiness. Only fixed classifications reach the private log.
   foundation.verifyRecoveryEmail().catch(() => observability.failure('recovery_smtp_check_failed', { code: 'SMTP_CHECK_FAILED' }));

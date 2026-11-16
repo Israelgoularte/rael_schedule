@@ -35,10 +35,10 @@ export function withUtms(path, utms, visitRef) {
   return url.pathname + url.search + url.hash;
 }
 
-export async function countLandingView(db, input, now) {
+export async function countLandingView(db, input, now, adChannels = []) {
   const reference = randomUUID();
   await db.query('INSERT INTO landing_visits(visit_key, created_at, utm_json) VALUES (?, ?, ?)',
-    [referenceKey(reference), now, JSON.stringify(basicUtms(input))]);
+    [referenceKey(reference), now, JSON.stringify({ ...basicUtms(input), ...(adChannels.length ? { rael_ad_channels: adChannels } : {}) })]);
   return reference;
 }
 

@@ -81,7 +81,7 @@ test('a instalação publica somente os dados da agenda e mantém acessos separa
   assert.match(signup, /<fieldset\s*>/);
   assert.match(signup, /autocomplete="new-password"/);
   assert.doesNotMatch(await (await call('/sistema/agenda')).text(), /data-mode="(?:login|register)"/);
-  for (const path of ['/precos', '/comecar', '/operacao', '/plataforma.html', '/sistema/agenda/licenca', '/internal/agenda/license', '/internal/agenda/account/closure']) {
+  for (const path of ['/precos', '/comecar', '/operacao', '/plataforma.html', '/api/v1/appointments', '/sistema/agenda/licenca', '/internal/agenda/license', '/internal/agenda/account/closure']) {
     assert.equal((await call(path)).status, 404, path);
   }
   const api = '/internal/agenda/';

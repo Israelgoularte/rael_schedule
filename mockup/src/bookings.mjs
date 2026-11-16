@@ -78,7 +78,7 @@ const contact = input => {
   return { name, email, phone };
 };
 
-export function createBookings(db, slug, config, dummyHash, payments, subscriptions, license, installationLicense) {
+export function createBookings(db, slug, config, dummyHash, payments, subscriptions, license, installationLicense, pro) {
   const now = config.now ?? (() => Date.now());
   const customerCookie = `${config.origin.startsWith('https://') ? '__Host-' : ''}rael_customer_${slug}`;
   const customerView = row => ({ id: row.id, name: row.name, email: row.email, phone: row.phone });
@@ -209,6 +209,7 @@ export function createBookings(db, slug, config, dummyHash, payments, subscripti
   async function reserve(actor, input, reschedule = false) {
     only(input, reschedule ? ['appointmentId', 'professionalId', 'startAt', 'quote', 'idempotencyKey', 'revision'] : ['serviceId', 'professionalId', 'startAt', 'quote', 'idempotencyKey', 'customer', 'subscriptionId', 'metadata']);
     const metadata = reschedule ? null : normalizeMetadata(input.metadata);
+    if (pro && metadata) for (const field of ['fbclid', 'gclid', 'gbraid', 'wbraid']) delete metadata[field];
     if (input.subscriptionId !== undefined && (!uuid(input.subscriptionId) || !actor.customer)) throw failure(422, 'Escolha uma assinatura da sua própria conta.');
     if (!uuid(input.idempotencyKey) || !Number.isSafeInteger(input.startAt) || input.startAt < 0 || input.startAt > 4102444800000 || typeof input.quote !== 'string') throw failure(422, 'Confira o horário escolhido e tente novamente.');
     const customerData = !reschedule && actor.staff ? contact(input.customer ?? {}) : null;
@@ -258,6 +259,7 @@ export function createBookings(db, slug, config, dummyHash, payments, subscripti
       await tx.query('INSERT INTO booking_requests(request_key, customer_id, signature, kind, appointment_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [requestKey, customer.id, signature, reschedule ? 'reschedule' : 'create', id, now()]);
       const [row] = await tx.query('SELECT a.*, i.state AS payment_state, i.expires_at AS payment_expires_at, i.resolution AS payment_resolution FROM appointments a LEFT JOIN mp_intents i ON i.appointment_id = a.id WHERE a.id = ?', [id]);
       const eventKey = await event(tx, row, actor, original ? 'rescheduled' : result.ctx.snapshot.requirePayment ? 'awaiting_payment' : 'confirmed', original ? { previousStartAt: Number(original.starts_at), previousProfessionalId: original.professional_id } : {});
+      if (original || row.status === 'confirmed') await pro?.bookingEvent(tx, row, original ? 'rescheduled' : 'confirmed', eventKey);
       await notifyAppointment(tx, { slug, appointmentId: id, eventKey, type: original ? 'rescheduled' : 'created', now: now() });
       return { appointment: view(row), created: !original };
     });
@@ -283,6 +285,7 @@ export function createBookings(db, slug, config, dummyHash, payments, subscripti
       await tx.query('UPDATE appointments SET status = ?, revision = revision + 1, updated_at = ? WHERE id = ?', [input.status, now(), row.id]);
       if (input.status === 'cancelled') { await payments.cancelled(tx, row.id); await subscriptions.release(tx, row); }
       const eventKey = await event(tx, row, actor, input.status);
+      if (input.status === 'cancelled') await pro?.bookingEvent(tx, row, 'cancelled', eventKey);
       if (input.status === 'cancelled') await notifyAppointment(tx, { slug, appointmentId: row.id, eventKey, type: 'cancelled', now: now() });
       return { appointment: view({ ...row, status: input.status, revision: Number(row.revision) + 1 }) };
     });

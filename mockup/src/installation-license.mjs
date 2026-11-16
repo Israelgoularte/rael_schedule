@@ -55,7 +55,7 @@ function claimsOf(token, installation, config) {
 
 export function createInstallationLicense(db, enabled, { send = fetch, now = Date.now, config = testConfig } = {}) {
   if (!enabled) return null;
-  let syncing;
+  let syncing, verifiedAt = -Infinity;
 
   async function central(path, row, data) {
     let response, result;
@@ -113,6 +113,7 @@ export function createInstallationLicense(db, enabled, { send = fetch, now = Dat
           throw unavailable();
         }
         await db.query('UPDATE installation_license SET token = ?, remote_state = ? WHERE id = 1', [token, result.status]);
+        verifiedAt = now();
       })().finally(() => { syncing = null; });
     }
     return syncing;
@@ -186,5 +187,14 @@ export function createInstallationLicense(db, enabled, { send = fetch, now = Dat
     return new Set(published.filter(person => active.has(person.id)).slice(0, seats).map(person => person.id));
   }
 
-  return { view, action, sweep: sync, current, assertSeats, bookable };
+  async function proAccess(conn = db) {
+    const time = now();
+    if (time - verifiedAt > 5 * 60_000) return null;
+    const row = await local(conn);
+    const signed = claimsOf(row?.token, row?.installation_id, config);
+    if (signed?.plan !== 'pro' || signed.start > time || time >= signed.end) return null;
+    return { features: signed.features, version: signed.licenseId + ':' + signed.activationVersion };
+  }
+
+  return { view, action, sweep: sync, current, assertSeats, bookable, proAccess };
 }
