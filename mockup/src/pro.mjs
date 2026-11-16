@@ -51,13 +51,14 @@ export function createPro(db, license, config, { now = Date.now, deliver = confi
     const { features, version } = await access();
     if (!features.length) return { mode: 'test', features, deliveries: [], keyActive: false };
     const [key] = features.includes('api') ? await db.query('SELECT id FROM pro_api_key WHERE id = 1 AND license_version = ?', [version]) : [];
-    const rows = await db.query(`SELECT event_id, destination, status, attempts, created_at, details FROM pro_delivery
+    const rows = await db.query(`SELECT event_id, destination, status, attempts, created_at, details, payload_json FROM pro_delivery
       WHERE license_version = ? ORDER BY created_at DESC, destination LIMIT 30`, [version]);
     return { mode: config.real ? 'live' : 'test', features, keyActive: Boolean(key),
       destinations: { meta: Boolean(config.meta), google: Boolean(config.google), webhook: Boolean(config.webhook) },
       deliveries: rows.filter(row => features.includes(featureFor[row.destination])).map(row => ({
         eventId: row.event_id, destination: row.destination, status: row.status, attempts: Number(row.attempts),
-        at: new Date(Number(row.created_at)).toISOString(), detail: row.details
+        at: new Date(Number(row.created_at)).toISOString(), detail: row.details,
+        mode: readMetadata(row.payload_json).mode === 'live' ? 'live' : 'test'
       })) };
   }
 
