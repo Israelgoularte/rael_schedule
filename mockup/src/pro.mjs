@@ -183,7 +183,9 @@ export function createPro(db, license, config, { now = Date.now, deliver = confi
       try { status = await deliver(row.destination, JSON.parse(row.payload_json)); }
       catch (error) {
         const code = Number(error.upstreamStatus);
-        detail = Number.isInteger(code) && code > 0 ? 'HTTP ' + code : 'Falha de conexão';
+        const phase = ['OAuth', 'Data Manager'].includes(error.upstreamStage) ? error.upstreamStage + ' ' : '';
+        const reason = ['invalid_client', 'invalid_grant', 'invalid_request'].includes(error.upstreamReason) ? ' ' + error.upstreamReason : '';
+        detail = Number.isInteger(code) && code > 0 ? phase + 'HTTP ' + code + reason : 'Falha de conexão';
         status = attempts < 4 && (!code || code === 429 || code >= 500) ? 'pending' : 'failed';
       }
       await db.query('UPDATE pro_delivery SET status = ?, details = ?, attempts = ?, next_at = ?, lease_id = NULL, lease_until = 0 WHERE event_id = ? AND destination = ? AND lease_id = ?',

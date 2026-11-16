@@ -56,9 +56,16 @@ export const webhookSignature = (secret, seconds, body) =>
 
 export function proDestinations(config, send = fetch) {
   const localSigningKey = randomBytes(32).toString('hex');
-  async function post(url, headers, body) {
+  async function post(url, headers, body, stage) {
     const response = await send(url, { method: 'POST', headers, body, signal: AbortSignal.timeout(4500), redirect: 'error' });
-    if (!response.ok) throw Object.assign(new Error('upstream_rejected'), { upstreamStatus: response.status });
+    if (!response.ok) {
+      let upstreamReason;
+      if (stage === 'OAuth') {
+        const report = await response.json().catch(() => null);
+        if (['invalid_client', 'invalid_grant', 'invalid_request'].includes(report?.error)) upstreamReason = report.error;
+      }
+      throw Object.assign(new Error('upstream_rejected'), { upstreamStatus: response.status, upstreamStage: stage, upstreamReason });
+    }
     return response;
   }
 
@@ -76,11 +83,11 @@ export function proDestinations(config, send = fetch) {
       if (!config.google || !event.synthetic) return 'simulated';
       const { client_id, client_secret, refresh_token } = config.google;
       const auth = await post('https://oauth2.googleapis.com/token', { 'Content-Type': 'application/x-www-form-urlencoded' },
-        new URLSearchParams({ client_id, client_secret, refresh_token, grant_type: 'refresh_token' }));
+        new URLSearchParams({ client_id, client_secret, refresh_token, grant_type: 'refresh_token' }).toString(), 'OAuth');
       const { access_token } = await auth.json();
-      if (typeof access_token !== 'string' || !access_token) throw Object.assign(new Error('oauth_failed'), { upstreamStatus: 401 });
+      if (typeof access_token !== 'string' || !access_token) throw Object.assign(new Error('oauth_failed'), { upstreamStatus: 401, upstreamStage: 'OAuth' });
       const reply = await post('https://datamanager.googleapis.com/v1/events:ingest',
-        { 'Content-Type': 'application/json', Authorization: 'Bearer ' + access_token }, JSON.stringify(payload));
+        { 'Content-Type': 'application/json', Authorization: 'Bearer ' + access_token }, JSON.stringify(payload), 'Data Manager');
       await reply.body?.cancel();
       return 'validated';
     }
